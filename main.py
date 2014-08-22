@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 from scipy.interpolate import interp1d
 import pandas as pd
+import timeit
 
 def read_phot(photfile):
     f = open(photfile+'_cfht.db','r')
@@ -31,13 +32,25 @@ def read_iso():
     f.close()
      """
 
-def likelihood(cmd_point,iso_point,error_cov):
+def likelihood_matrix(cmd_point,iso_point,error_cov):
     """Perform calculations as ndarrays and not as matrices;  have
     checked that the behavior and cpu usage is the same"""
     diff = cmd_point - iso_point
     arg = -0.5*(np.dot(diff,np.dot(np.linalg.inv(error_cov),diff)))
-    print diff,arg
+    #print diff,arg
     return arg
+
+def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
+    #arrays must be ndarr, not python lists
+    det_sigma_matrix = sigma_r*sigma_r*sigma_gr*sigma_gr - cov_gr_r*cov_gr_r
+    det_sigma_matrix_inv = 1.0 / det_sigma_matrix
+    P = 1.0/(2.0*np.pi*sqrt(det_sigma_matrx))
+    exp_arg = np.exp(-0.5*(det_sigma_matrix_inv)*
+          (sigma_r**2*delta_gr_arr**2 - 
+           2.0*cov_gr_r*delta_gr_arr*delta_r_arr + 
+           sigma_gr**2*delta_r_arr**2))
+    print P*exp_arg
+    return P*exp_arg
 
 #Set env variables for latex-style plotting
 if len(sys.argv) != 2: sys.exit()
@@ -86,18 +99,26 @@ isocol = f(x)
 dmod = 19.11  #McConnachie2012
 EBV  = 0.017  #McConnachie2012
 i = 0
-for j in range(len(isomag0)):
+
+tic = timeit.default_timer()
+for i in range(len(phot['grerr'])):
+    if i % 1000 == 0: print i
+    #print '(g-r, r) = {0:3f} , {1:3f}'.format(phot['gr'][i],phot['r'][i])
     error_cov = np.array([[phot['grerr'][i],0.0],[0.0,phot['rerr'][i]]])
-    print likelihood(np.array([phot['gr'][i],phot['r'][i]]),np.array([isocol0[j],isomag0[j]+dmod]),error_cov)
-    #dmod = 19.11  #McConnachie2012
-    #EBV  = 0.017  #McConnachie2012
-    #plt.ylabel('r')
-    #plt.xlabel('g-r')
-    #plt.axis([-0.2,1.2,12.+dmod,-2+dmod])
-    #plt.scatter(phot['gr0'][i],phot['r0'][i],color='green',marker='^',s=20)
-    #plt.plot(isocol0,isomag0+dmod,'r.',linestyle='-',lw=1.0)
-    #plt.scatter(isocol0[j],isomag0[j]+dmod,color='blue',marker='o',s=15)
-    #plt.show()
+    for j in range(len(isomag0)):
+        a = likelihood(np.array([phot['gr'][i],phot['r'][i]]),np.array([isocol0[j],isomag0[j]+dmod]),error_cov)
+
+        #dmod = 19.11  #McConnachie2012
+        #EBV  = 0.017  #McConnachie2012
+        #plt.ylabel('r')
+        #plt.xlabel('g-r')
+        #plt.axis([-0.2,1.2,12.+dmod,-2+dmod])
+        #plt.scatter(phot['gr0'][i],phot['r0'][i],color='green',marker='^',s=20)
+        #plt.plot(isocol0,isomag0+dmod,'r.',linestyle='-',lw=1.0)
+        #plt.scatter(isocol0[j],isomag0[j]+dmod,color='blue',marker='o',s=15)
+        #plt.show()
+        #toc = timeit.default_timer()
+print toc - tic
 
 
 #plot CMD on native pixels vs interpolated to fixed mag bin (if interpolated enabled)
