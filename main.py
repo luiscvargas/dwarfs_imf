@@ -1,4 +1,5 @@
 import sys
+import os 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
@@ -7,13 +8,13 @@ import pandas as pd
 import timeit
 
 def read_phot(photfile):
-    f = open(photfile+'_cfht.db','r')
+    f = open(os.getenv('DATA')+'CFHT/'+photfile+'_cfht.db','r')
     ids = ['id','ra','dec','g','gerr','r','rerr','chi','sharp',
         'rd','gl','gb','e_gr','a_g','a_r']
-    data_pd = pd.read_csv(f,comment="#",names=ids,delim_whitespace=True,
-        header=None,skiprows=6) 
-    data_pd['g0'] = data_pd['g'] - data_pd['a_g']    
-    data_pd['r0'] = data_pd['r'] - data_pd['a_g']    
+    data_pd = pd.read_csv(f,comment="#",delim_whitespace=True,
+        header=0,skiprows=5) 
+    data_pd['g0'] = data_pd['g'] - data_pd['ag']    
+    data_pd['r0'] = data_pd['r'] - data_pd['ar']    
     data_pd['gr'] = data_pd['g'] - data_pd['r']   
     data_pd['gr0'] = data_pd['g0'] - data_pd['r0']    
     f.close()
@@ -32,6 +33,33 @@ def read_iso():
     f.close()
      """
 
+def read_dsph_data():
+    f=open('mwdwarfs_properties_luis.dat')
+    g=open('mwdwarfs_properties_luis_2.dat')
+    columns = ['dsph','Mv','Mv_err','MV_source','rhelio','erhelio_err','dmod0','dmod0_err',
+    'dist_source','r_h','r_h_err','r_h_source','tmp1','tmp2','tmp3','vrad','vrad_err',
+    'vgsr','sigma_vel','sigma_vel_err','tmp4','source_kinematics']
+    
+    dsphs1 = pd.read_csv(f,names=columns,skiprows=3,comment='#',sep='\s+',header=None,
+    usecols=np.arange(22),index_col=0)
+    
+    dsphs2 = pd.read_csv(g,names=['dsph','ebv','ebv_source','pa','pa_err','pa_source','ellip','ellip_err','ellip_source',
+    'ra','dec','source_radec','tmp1','tmp2','tmp3'],skiprows=3,comment='#',sep='\s+',header=None,
+    usecols=np.arange(15),index_col=0) 
+
+    f.close()
+    g.close()
+
+    del dsphs2['tmp1']
+    del dsphs2['tmp2']
+    del dsphs2['tmp3']
+
+    print dsphs1.head()
+    print dsphs2.head()
+    dsphs = dsphs1.join(dsphs2,how='inner')  #do not specify on='key' for a given index key IF that key IS the index (here, key=dsph is the index)
+
+    return dsphs
+
 def likelihood_matrix(cmd_point,iso_point,error_cov):
     """Perform calculations as ndarrays and not as matrices;  have
     checked that the behavior and cpu usage is the same"""
@@ -44,12 +72,12 @@ def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
     #arrays must be ndarr, not python lists
     det_sigma_matrix = sigma_r*sigma_r*sigma_gr*sigma_gr - cov_gr_r*cov_gr_r
     det_sigma_matrix_inv = 1.0 / det_sigma_matrix
-    P = 1.0/(2.0*np.pi*sqrt(det_sigma_matrx))
+    P = 1.0/(2.0*np.pi*np.sqrt(det_sigma_matrix))
     exp_arg = np.exp(-0.5*(det_sigma_matrix_inv)*
           (sigma_r**2*delta_gr_arr**2 - 
            2.0*cov_gr_r*delta_gr_arr*delta_r_arr + 
            sigma_gr**2*delta_r_arr**2))
-    print P*exp_arg
+    #print P*exp_arg
     return P*exp_arg
 
 #Set env variables for latex-style plotting
@@ -57,8 +85,15 @@ if len(sys.argv) != 2: sys.exit()
 rc('text', usetex=True)
 rc('font', family='serif')
 
+dsph_select = str(sys.argv[1])
+
+#Read-in MW dwarf spheroidal data, e.g., Mv, distance modulus, velocity dispersion
+#The data comes from a data table I try to maintain updated with high quality data 
+#for each quantity.
+dsphs = read_dsph_data()
+
 #Read in photometry database and extract relevant quantities
-phot = read_phot(str(sys.argv[1]))
+phot = read_phot(dsph_select)
 
 #The following two series, as well as phot['rerr'] conform the elements of the phot error matrix
 phot['cov'] = 0.0  #assume cov(g,r) = 0.0 for now 
@@ -68,6 +103,7 @@ phot['grerr'] = np.sqrt(phot['gerr']**2 + phot['rerr']**2 - 2.*phot['cov'])
 rmin = 18. ; dr = 0.5
 rbin = np.arange(18.,25.,.5) + .5  #excludes endpoint 25.
 rerrmean = []
+
 for r in rbin:
     rerrmean.append(phot[(phot['r'] > r - 0.5) & (phot['r'] < r + 0.5)].rerr.mean())
  
@@ -78,10 +114,12 @@ for i in range(0,2):
     print  'cov = {0:3f}'.format(phot.loc[i,'cov'] - phot.loc[i,'rerr']**2)
     print  'grerr = {0:3f}'.format(phot.loc[i,'grerr'])
 
+dmod0  = dsphs.loc[dsph_select,'dmod0']  #(row,column), use_cols = 0 was set in read_csv to index by dsph name
+
 #Now import isochrone 
 iso = read_iso()
 isocol0 = iso['sdss_g'] - iso['sdss_r']
-isomag0    = iso['sdss_r']
+isomag0    = iso['sdss_r'] + dmod0
 
 """Here, I can play with interpolating isochrone to a regular grid in say rmag
 isomag   = x
@@ -98,15 +136,21 @@ isocol = f(x)
 #Loop over data points and isochrone points 
 dmod = 19.11  #McConnachie2012
 EBV  = 0.017  #McConnachie2012
+
 i = 0
 
+print 'The distance modulus is {0:4f}'.format(dmod0)
+
 tic = timeit.default_timer()
-for i in range(len(phot['grerr'])):
+for i in range(2000):
+#for i in range(len(phot['grerr'])):
     if i % 1000 == 0: print i
     #print '(g-r, r) = {0:3f} , {1:3f}'.format(phot['gr'][i],phot['r'][i])
     error_cov = np.array([[phot['grerr'][i],0.0],[0.0,phot['rerr'][i]]])
-    for j in range(len(isomag0)):
-        a = likelihood(np.array([phot['gr'][i],phot['r'][i]]),np.array([isocol0[j],isomag0[j]+dmod]),error_cov)
+    a = likelihood(phot['grerr'][i],phot['rerr'][i],phot['cov'][i],phot['grerr'][i]-isocol0,phot['r'][i]-isomag0)
+
+    #for j in range(len(isomag0)):
+    #    a = likelihood_matrix(np.array([phot['gr'][i],phot['r'][i]]),np.array([isocol0[j],isomag0[j]+dmod0]),error_cov)
 
         #dmod = 19.11  #McConnachie2012
         #EBV  = 0.017  #McConnachie2012
@@ -117,18 +161,10 @@ for i in range(len(phot['grerr'])):
         #plt.plot(isocol0,isomag0+dmod,'r.',linestyle='-',lw=1.0)
         #plt.scatter(isocol0[j],isomag0[j]+dmod,color='blue',marker='o',s=15)
         #plt.show()
-        #toc = timeit.default_timer()
+toc = timeit.default_timer()
 print toc - tic
 
 
-#plot CMD on native pixels vs interpolated to fixed mag bin (if interpolated enabled)
-plt.ylabel(r'$r_0$')
-plt.xlabel(r'$(g-r)_0$')
-plt.axis([-0.2,0.75,6.+dmod,-2+dmod])
-plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
-plt.scatter(phot['gr0'],phot['r0'],color='b',marker='.',s=1)
-plt.plot(isocol0,isomag0+dmod,'r.',linestyle='-',lw=1.0)
-plt.show()
 
 
 """
@@ -143,7 +179,26 @@ plt.scatter(phot['r'],phot['g'],c=['k'],marker='.',s=1)
 plt.xlim(16,22)
 plt.ylim(16,22)
 plt.show()
+"""
 
+plt.subplot(1,2,1)
+plt.scatter(phot['ra'],phot['dec'],c='k',marker='.',s=1)
+plt.xlabel(r'$\alpha$',fontdict={'size':12})
+plt.ylabel(r'$\delta$',fontdict={'size':12})
+plt.xlim(phot['ra'].min()-.01,phot['ra'].max()+.01)
+plt.ylim(phot['dec'].min()-.01,phot['dec'].max()+.01)
+
+#plot CMD on native pixels vs interpolated to fixed mag bin (if interpolated enabled)
+plt.subplot(1,2,2)
+plt.ylabel(r'$r_0$')
+plt.xlabel(r'$(g-r)_0$')
+plt.axis([-0.2,0.75,6.+dmod,-2+dmod])
+plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
+plt.scatter(phot['gr0'],phot['r0'],color='b',marker='.',s=1)
+plt.plot(isocol0,isomag0+dmod,'r.',linestyle='-',lw=1.0)
+plt.show()
+
+"""
 
 plt.subplot(2,3,1)
 plt.scatter(phot['ra'],phot['dec'],c='k',marker='.',s=1)
@@ -180,6 +235,14 @@ plt.ylabel(r'$sharp$',fontdict={'size':12})
 plt.xlim(phot['r'].min()-.1,phot['r'].max()+.1)
 plt.ylim(-4,4)
 
+#plot CMD on native pixels vs interpolated to fixed mag bin (if interpolated enabled)
+plt.subplot(2,3,6)
+plt.ylabel(r'$r_0$')
+plt.xlabel(r'$(g-r)_0$')
+plt.axis([-0.2,0.75,6.+dmod,-2+dmod])
+plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
+plt.scatter(phot['gr0'],phot['r0'],color='b',marker='.',s=1)
+plt.plot(isocol0,isomag0+dmod,'r.',linestyle='-',lw=1.0)
 plt.show()
+
 """
-    
