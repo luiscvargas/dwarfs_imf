@@ -84,8 +84,6 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit):
     dN_arr[mass_arr > mass_max] = 0.0
     return dN_arr
     
-
-
 def likelihood_matrix(cmd_point,iso_point,error_cov):
     """Perform calculations as ndarrays and not as matrices;  have
     checked that the behavior and cpu usage is the same"""
@@ -147,7 +145,7 @@ print 'The distance modulus is {0:4f}'.format(dmod0)
 #EBV  = 0.017  #McConnachie2012
 
 mass_min = 0.05
-mass_max = 0.9  #mass max must be below MSTO
+mass_max = 0.78  #mass max must be below MSTO
 #Now import isochrone 
 iso = read_iso()
 isocol0 = iso['gr']
@@ -158,8 +156,11 @@ isocol = isocol0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 isomag = isomag0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 isomass = isomass0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 
-print isomass
-print len(isomass),len(isocol)
+if 0:
+   plt.plot(isocol0,isomag0,lw=1,ls='-')
+   plt.plot(isocol,isomag,lw=3,ls='--')
+   plt.ylim(24,12)
+   plt.show()
 
 """Here, I can play with interpolating isochrone to a regular grid in say rmag
 isomag   = x
@@ -174,11 +175,25 @@ isocol = f(x)
 #Loop over data points and isochrone points 
 i = 0
 tic = timeit.default_timer()
-for i in range(2000):
+for i in range(10000):
 #for i in range(len(phot['grerr'])):
     if i % 1000 == 0: print i
+    delta_color = phot['gr0'][i] - isocol
+    delta_mag   = phot['r0'][i]  - isomag
     error_cov = np.array([[phot['grerr'][i],0.0],[0.0,phot['rerr'][i]]])
-    a = likelihood(phot['grerr'][i],phot['rerr'][i],phot['cov'][i],phot['grerr'][i]-isocol0,phot['r'][i]-isomag0)
+    a  = likelihood(phot['grerr'][i],phot['rerr'][i],phot['cov'][i],delta_color,delta_mag)
+    dN = f_salpeter(isomass,mass_min,mass_max,2.35)
+    if 0:
+        plt.subplot(3,1,1)
+        plt.ylabel(r'$\rho$exp(...)')
+        plt.plot(isomass,a*dN,'bo',ms=3,ls='-')
+        plt.subplot(3,1,2)
+        plt.ylabel(r'$\rho$')
+        plt.plot(isomass,dN,'bo',ms=3,ls='-')
+        plt.subplot(3,1,3)
+        plt.ylabel(r'exp(...)')
+        plt.plot(isomass,a,'bo',ms=3,ls='-')
+        plt.show()
 
 
 """
