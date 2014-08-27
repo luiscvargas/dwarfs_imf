@@ -24,7 +24,7 @@ def read_iso():
     f = open('iso/test.iso','r')
     ids = ['mass','teff',';logg','g','r','i']
     iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
-        header=0,skiprows=8,usecols=(1,2,3,6,7,8))
+        header=None,skiprows=9,usecols=(1,2,3,6,7,8))
     iso_pd['gr'] = iso_pd['g'] - iso_pd['r']
     f.close()
     return iso_pd
@@ -65,9 +65,9 @@ def f_salpeter(mass_arr,mass_min,mass_max,alpha):
     dmass_arr = np.ediff1d(mass_arr,to_end=0.0)  #to end sets last element to 0 otherwise
        #one element too few.
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
+    dmass_arr = abs(dmass_arr)
     dN_arr = (mass_arr**(-1.*alpha)) * dmass_arr
-    dN_arr[mass_arr < mass_min] = 0.0
-    dN_arr[mass_arr > mass_max] = 0.0
+    dN_arr[(mass_arr < mass_min) & (mass_arr > mass_max)] = 0.0
     return dN_arr
 
 #specify a Chabrier LF, but given in dN/dM. The Chabrier IMF is given typically as dN/d(logM)
@@ -77,11 +77,11 @@ def f_salpeter(mass_arr,mass_min,mass_max,alpha):
 def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit):
     dmass_arr = np.ediff1d(mass_arr,to_end=0.0)  
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] 
+    dmass_arr = abs(dmass_arr)
     dN_arr = ((1./(np.log(10.)*mass_arr)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
         np.exp(-1. * (np.log10(mass_arr)-np.log10(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
         dmass_arr)
-    dN_arr[mass_arr < mass_min] = 0.0
-    dN_arr[mass_arr > mass_max] = 0.0
+    dN_arr[(mass_arr < mass_min) & (mass_arr > mass_max)] = 0.0
     return dN_arr
     
 def likelihood_matrix(cmd_point,iso_point,error_cov):
@@ -173,28 +173,45 @@ isocol = f(x)
 #EBV  = 0.017  ; A_g  =    ; A_r  = 
 
 #Loop over data points and isochrone points 
-i = 0
-tic = timeit.default_timer()
-for i in range(10000):
-#for i in range(len(phot['grerr'])):
-    if i % 1000 == 0: print i
-    delta_color = phot['gr0'][i] - isocol
-    delta_mag   = phot['r0'][i]  - isomag
-    error_cov = np.array([[phot['grerr'][i],0.0],[0.0,phot['rerr'][i]]])
-    a  = likelihood(phot['grerr'][i],phot['rerr'][i],phot['cov'][i],delta_color,delta_mag)
-    dN = f_salpeter(isomass,mass_min,mass_max,2.35)
-    if 0:
-        plt.subplot(3,1,1)
-        plt.ylabel(r'$\rho$exp(...)')
-        plt.plot(isomass,a*dN,'bo',ms=3,ls='-')
-        plt.subplot(3,1,2)
-        plt.ylabel(r'$\rho$')
-        plt.plot(isomass,dN,'bo',ms=3,ls='-')
-        plt.subplot(3,1,3)
-        plt.ylabel(r'exp(...)')
-        plt.plot(isomass,a,'bo',ms=3,ls='-')
-        plt.show()
 
+alpha_arr = [1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
+logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
+
+tic = timeit.default_timer()
+
+for ialpha,alpha in enumerate(alpha_arr):
+    logL_i = 0.0
+    for i in range(1000):
+    #for i in range(len(phot['grerr'])):
+        if i % 1000 == 0: print i
+        delta_color = phot['gr0'][i] - isocol
+        delta_mag   = phot['r0'][i]  - isomag
+        error_cov = np.array([[phot['grerr'][i],0.0],[0.0,phot['rerr'][i]]])
+        a  = likelihood(phot['grerr'][i],phot['rerr'][i],phot['cov'][i],delta_color,delta_mag)
+        dN = f_salpeter(isomass,mass_min,mass_max,alpha)
+        L_tmp = np.sum(a*dN)
+        if L_tmp < 1e-100: logL_tmp = -1000.
+        if L_tmp >= 1e-100: logL_tmp = np.log(L_tmp)
+        logL_i += logL_tmp
+        print i,logL_i
+        if 0:
+            plt.subplot(3,1,1)
+            plt.ylabel(r'$\rho$exp(...)')
+            plt.plot(isomass,a*dN,'bo',ms=3,ls='-')
+            plt.subplot(3,1,2)
+            plt.ylabel(r'$\rho$')
+            plt.plot(isomass,dN,'bo',ms=3,ls='-')
+            plt.subplot(3,1,3)
+            plt.ylabel(r'exp(...)')
+            plt.plot(isomass,a,'bo',ms=3,ls='-')
+            plt.show()
+    logL_arr[ialpha] = logL_i   
+
+print alpha_arr
+print logL_arr
+
+plt.plot(alpha_arr,logL_arr,'bo',markersize=5)
+plt.show()
 
 """
 markers:  .  ,  o  v  ^  >  <  1  2  3  4  8  s  p  *  h  H  +  x  D  d  |   _  
