@@ -17,6 +17,7 @@ def read_phot(photfile):
     data_pd['r0'] = data_pd['r'] - data_pd['ar']    
     data_pd['gr'] = data_pd['g'] - data_pd['r']   
     data_pd['gr0'] = data_pd['g0'] - data_pd['r0']    
+    data_pd['ra'] = data_pd['ra'] * 15.
     f.close()
     return data_pd
 
@@ -139,11 +140,64 @@ for i in range(0,2):
     print  'grerr = {0:3f}'.format(phot.loc[i,'grerr'])
 
 dmod0  = dsphs.loc[dsph_select,'dmod0']  #(row,column), use_cols = 0 was set in read_csv to index by dsph name
-print 'The distance modulus is {0:4f}'.format(dmod0)
+print 'The distance modulus is {0:4f}.'.format(dmod0)
+ra_dwarf  = dsphs.loc[dsph_select,'ra']  #(row,column), use_cols = 0 was set in read_csv to index by dsph name
+print 'The central ra is {0:4f} deg.'.format(ra_dwarf)
+dec_dwarf  = dsphs.loc[dsph_select,'dec']  #(row,column), use_cols = 0 was set in read_csv to index by dsph name
+print 'The central decl is {0:4f} deg.'.format(dec_dwarf)
+rhalf_dwarf  = dsphs.loc[dsph_select,'r_h']  #(row,column), use_cols = 0 was set in read_csv to index by dsph name
+print 'The half-light radius is {0:4f} arcmin.'.format(rhalf_dwarf)
 #Loop over data points and isochrone points 
 #dmod = 19.11  #McConnachie2012
 #EBV  = 0.017  #McConnachie2012
 
+#Create a mask to only select stars within the central 2 rhalf and 90% completeness
+n_half = 1
+dist_center = np.sqrt(((phot['ra']-ra_dwarf)*np.cos(dec_dwarf*np.pi/180.))**2 +
+    (phot['dec']-dec_dwarf)**2) 
+phot['dist_center'] = dist_center
+
+if 0:
+    mask = dist_center < n_half*rhalf_dwarf/60. # in deg
+    plt.subplot(1,3,1)
+    plt.scatter(phot['ra'],phot['dec'],color='k',marker='.',s=1)
+    plt.scatter(phot['ra'][mask],phot['dec'][mask],color='r',marker='o',s=2)
+    plt.xlabel(r'$\alpha$',fontdict={'size':12})
+    plt.ylabel(r'$\delta$',fontdict={'size':12})
+    plt.xlim(phot['ra'][mask].min()-.03,phot['ra'][mask].max()+.03)
+    plt.ylim(phot['dec'][mask].min()-.03,phot['dec'][mask].max()+.03)
+    plt.subplot(1,3,2)
+    plt.ylabel(r'$r_0$')
+    plt.xlabel(r'$(g-r)_0$')
+    plt.axis([-0.2,0.75,6.+dmod0,-2+dmod0])
+    plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
+    plt.scatter(phot['gr0'],phot['r0'],color='k',marker='.',s=1)
+    plt.scatter(phot['gr0'][mask],phot['r0'][mask],color='r',marker='o',s=2)
+    plt.subplot(1,3,3)
+    n_r , rhist = np.histogram(phot['r0'][mask],bins=50,density=True)
+    n_r_sum = np.cumsum(n_r)
+    n_r_sum = n_r_sum / n_r_sum.max()
+    plt.bar(rhist[:-1],n_r_sum)
+    plt.ylabel(r'$r_0$')
+    plt.xlabel(r'$N_{cumul}$')
+    plt.axis([-2+dmod0,6+dmod0,0,1.1])
+    plt.show()
+
+rmin_box = float(raw_input('enter minimum rmag>> '))
+rmax_box = float(raw_input('enter maximum rmag>> '))
+
+mask = (dist_center < n_half*rhalf_dwarf/60.) & (phot['r0'] >= rmin_box) & (phot['r0'] <= rmax_box)  # in deg
+
+phot_raw = phot.copy()
+phot = phot[(phot.dist_center < n_half*rhalf_dwarf/60.) & (phot.r0 >= rmin_box) & (phot.r0 <= rmax_box)].reset_index()
+
+
+
+#del phot
+#phot = photnew
+
+# & (phot.r0 >= rmin_box) & (phot.r0 <= rmax_box)]
+    
 mass_min = 0.05
 mass_max = 0.78  #mass max must be below MSTO
 #Now import isochrone 
@@ -156,10 +210,17 @@ isocol = isocol0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 isomag = isomag0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 isomass = isomass0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 
-if 0:
+print len(isocol)
+
+if 1:
    plt.plot(isocol0,isomag0,lw=1,ls='-')
    plt.plot(isocol,isomag,lw=3,ls='--')
-   plt.ylim(24,12)
+   plt.ylabel(r'$r_0$')
+   plt.xlabel(r'$(g-r)_0$')
+   plt.axis([-0.5,1.0,6.+dmod0,-2+dmod0])
+   plt.errorbar(-0.2*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
+   plt.scatter(phot_raw['gr0'],phot_raw['r0'],color='k',marker='.',s=1)
+   plt.scatter(phot['gr0'],phot['r0'],color='r',marker='o',s=2)
    plt.show()
 
 """Here, I can play with interpolating isochrone to a regular grid in say rmag
@@ -179,11 +240,14 @@ logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
 tic = timeit.default_timer()
 
+phot_gr0 = phot['gr0']
+
 for ialpha,alpha in enumerate(alpha_arr):
     logL_i = 0.0
-    for i in range(1000):
-    #for i in range(len(phot['grerr'])):
-        if i % 1000 == 0: print i
+    print phot['gr0']
+    #for i in range(1000):
+    for i in range(len(phot['gr0'])):
+        #if i % 1000 == 0: print i
         delta_color = phot['gr0'][i] - isocol
         delta_mag   = phot['r0'][i]  - isomag
         error_cov = np.array([[phot['grerr'][i],0.0],[0.0,phot['rerr'][i]]])
@@ -211,6 +275,9 @@ print alpha_arr
 print logL_arr
 
 plt.plot(alpha_arr,logL_arr,'bo',markersize=5)
+plt.title(r'ln\,$L$ as Func of $\alpha$')
+plt.xlabel(r'$\alpha$')
+plt.ylabel(r'ln\,$L$')
 plt.show()
 
 """
