@@ -13,23 +13,32 @@ def read_phot(photfile,**kwargs):
     else:
         tel = ''
     #Read-in photometric data, if dataset = 'hst', use HST data otherwise use cfht data
-    if tel == 'hst':
+    if tel == 'wfpc2':
         f = open(os.getenv('DATA')+'/HST/'+photfile+'_hst.db','r')
         data_pd = pd.read_csv(f,comment="#",delim_whitespace=True,
             header=0)
 
+	#Get E(B-V) at direction of dSph
+        dsphs = read_dsph_data()
+        ebv_sfd98  = dsphs.loc[dsph_select,'ebv'] 
+
+	#Define ratios of extinction to E(B-V)_SFD98 from Schlafly & Finkbeiner 2011
+        f_m606w = 2.415
+        f_m814w = 1.549
+
+	#De-redden and correct for extinction, and assign values to color, magnitude, and error series.
         data_pd['cov'] = 0.0  #assume cov(g,r) = 0.0 for now 
-        data_pd['mag'] = data_pd['m814']
-        data_pd['col'] = data_pd['m814'] - data_pd['m606']
+        data_pd['mag'] = data_pd['m814'] - f_m814w * ebv_sfd98
+        data_pd['col'] = (data_pd['m606'] - f_m606w * ebv_sfd98) - (data_pd['m814'] - f_m814w * ebv_sfd98)
         data_pd['magerr'] = data_pd['m814err']
-        data_pd['colerr'] = np.sqrt(data_pd['m606err']**2 + data_pd['m184err']**2 - 2.*data_pd['cov'])   
+        data_pd['colerr'] = np.sqrt(data_pd['m606err']**2 + data_pd['m814err']**2 - 2.*data_pd['cov'])   
 
         x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
         if 'cuts' in kwargs.keys(): 
-            if kwarfs['cuts'] == True: data_pd = data_pd[(data_pd[col] >= x1) & (data_pd[col] <= x2) & 
-                  (data_pd[m814] <= y2) and (data_pd[m814] >= y1) & (data_pd[clip] == 0)].reset_index()
+            if kwargs['cuts'] == True: data_pd = data_pd[(data_pd['col'] >= x1) & (data_pd['col'] <= x2) & 
+                  (data_pd['m814'] <= y2) & (data_pd['m814'] >= y1) & (data_pd['clip'] == 0)].reset_index()
 
-    elif tel != 'hst':
+    elif tel == 'sdss':
         f = open(os.getenv('DATA')+'/CFHT/'+photfile+'_cfht.db','r')
         #ids = ['id','ra','dec','g','gerr','r','rerr','chi','sharp',
         #    'rd','gl','gb','e_gr','a_g','a_r']
@@ -93,15 +102,27 @@ def read_phot(photfile,**kwargs):
                 (data_pd.mag >= rmin_box) & (data_pd.mag <= rmax_box)].reset_index()
             else:
                 pass
+    else:
+        raise sys.exit()
         
     return data_pd
 
-def read_iso():
-    f = open('iso/test.iso','r')
-    ids = ['mass','teff',';logg','g','r','i']
-    iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
-        header=None,skiprows=9,usecols=(1,2,3,6,7,8))
-    iso_pd['gr'] = iso_pd['g'] - iso_pd['r']
+def read_iso(system):
+    if system == 'sdss': 
+        f = open('iso/test.iso','r')
+        ids = ['mass','teff','logg','sdss_g','sdss_r','sdss_i']
+        iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
+            header=None,skiprows=9,usecols=(1,2,3,6,7,8))
+    elif system == 'wfpc2': 
+        f = open('iso/darth_12gy_wfpc2.iso','r')
+        ids = ['mass','teff','logg','f606w','f814w']
+        iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
+            header=None,skiprows=9,usecols=(1,2,3,12,16))
+        #Convert magnitudes from Vega system to STMAG system
+        iso_pd['f606w'] = iso_pd['f606w'] + 23.195 - 22.880
+        iso_pd['f814w'] = iso_pd['f814w'] + 22.906 - 21.641
+    else:
+        pass
     f.close()
     return iso_pd
 
@@ -185,6 +206,8 @@ if len(sys.argv) != 2: sys.exit()
 rc('text', usetex=True)
 rc('font', family='serif')
 
+system = 'wfpc2'
+
 dsph_select = str(sys.argv[1])
 
 #Read-in MW dwarf spheroidal data, e.g., Mv, distance modulus, velocity dispersion
@@ -202,12 +225,12 @@ print 'The central decl is {0:4f} deg.'.format(dec_dwarf)
 print 'The half-light radius is {0:4f} arcmin.'.format(rhalf_dwarf)
 
 #Read in photometry database and extract relevant quantities
-phot = read_phot(dsph_select,dataset='cfht',cuts=True)
-phot_raw = read_phot(dsph_select,dataset='cfht',cuts=False)
+phot = read_phot(dsph_select,dataset=system,cuts=True)
+phot_raw = read_phot(dsph_select,dataset=system,cuts=False)
 
 #Find representative errors for bins in magnitude
 magmin = 18. ; dmag = 0.5
-magbin = np.arange(18.,25.,.5) + .5  #excludes endpoint 25.
+magbin = np.arange(18.,30.,.5) + .5  #excludes endpoint 25.
 magerrmean = []
 
 for mag in magbin:
@@ -234,10 +257,20 @@ mass_min = 0.05
 mass_max = 0.75  #mass max must be below MSTO - make plot to check for this?
 
 #Now import isochrone 
-iso = read_iso()
-isocol0 = iso['gr']
-isomag0 = iso['r'] + dmod0
+iso = read_iso(system)
 isomass0 = iso['mass']
+if system == 'wfpc2':
+    isocol0 = iso['f606w'] - iso['f814w']
+    isomag0 = iso['f814w'] + dmod0
+    col_name = r'$m_{606w} - m_{814w}$'
+    mag_name = r'$m_{814w}$'
+elif system == 'sdss':
+    isocol0 = iso['sdss_g'] - iso['sdss_r']
+    isomag0 = iso['sdss_r'] + dmod0
+    col_name = r'$(g - r)_0$'
+    mag_name = r'$r_0$'
+else:
+    pass
 
 isocol = isocol0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 isomag = isomag0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
@@ -246,10 +279,12 @@ isomass = isomass0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 if 1:
    plt.plot(isocol0,isomag0,lw=1,ls='-')
    plt.plot(isocol,isomag,lw=3,ls='--')
-   plt.ylabel(r'$r_0$')
-   plt.xlabel(r'$(g-r)_0$')
-   plt.axis([-0.5,1.0,6.+dmod0,-2+dmod0])
-   plt.errorbar(-0.2*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
+   plt.ylabel(mag_name)
+   plt.xlabel(col_name)
+   if system == 'wfpc2': plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
+   if system == 'sdss': plt.axis([-1.25,0.75,6.+dmod0,-2+dmod0])
+   if system == 'wfpc2': plt.errorbar(-0.9+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
+   if system == 'sdss': plt.errorbar(-0.2+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
    plt.scatter(phot_raw['col'],phot_raw['mag'],color='k',marker='.',s=1)
    plt.scatter(phot['col'],phot['mag'],color='r',marker='o',s=2)
    #plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
