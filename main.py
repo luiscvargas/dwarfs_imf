@@ -108,26 +108,30 @@ for i in range(0,2):
     
 mass_min = 0.05
 mass_max = 0.75  #mass max must be below MSTO - make plot to check for this?
+isoage = 14.0
+isofeh = -2.5
+isoafe = 0.4
 
-#Now import isochrone: age,feh,afe 
-iso = read_iso_darth(14.0,-2.5,0.4,system)
-isomass0 = iso['mass']
+#Now import isochrone of given age, [Fe/H], [a/Fe], making desired mass cuts for fitting
+iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min,mass_max=mass_max)
+iso0 = read_iso_darth(isoage,isofeh,isoafe,system)
+
+isomass = iso['mass'] ; isomass0 = iso0['mass']
 if system == 'wfpc2':
-    isocol0 = iso['f606w'] - iso['f814w']
-    isomag0 = iso['f814w'] + dmod0
-    col_name = r'$m_{606w} - m_{814w}$'
-    mag_name = r'$m_{814w}$'
+    isocol = iso['f606w'] - iso['f814w'] ; isocol0 = iso0['f606w'] - iso0['f814w']
+    isomag = iso['f814w'] + dmod0 ; isomag0 = iso0['f814w'] + dmod0
+    col_name = r'$m_{606w} - m_{814w}$' ; mag_name = r'$m_{814w}$'
 elif system == 'sdss':
-    isocol0 = iso['sdss_g'] - iso['sdss_r']
-    isomag0 = iso['sdss_r'] + dmod0
+    isocol = iso['sdss_g'] - iso['sdss_r'] ; isocol0 = iso0['sdss_g'] - iso0['sdss_r']
+    isomag = iso['sdss_r'] + dmod0 ; isomag0 = iso0['sdss_r'] + dmod0
     col_name = r'$(g - r)_0$'
     mag_name = r'$r_0$'
 else:
     pass
 
-isocol = isocol0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
-isomag = isomag0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
-isomass = isomass0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
+#isocol = isocol0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
+#isomag = isomag0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
+#isomass = isomass0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 
 if 1:
    plt.plot(isocol0,isomag0,lw=1,ls='-')
