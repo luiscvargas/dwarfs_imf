@@ -1,6 +1,7 @@
 import sys
 import os 
 import numpy as np
+import glob
 import matplotlib.pyplot as plt
 from matplotlib import rc
 from scipy.interpolate import interp1d
@@ -107,17 +108,30 @@ def read_phot(photfile,**kwargs):
         
     return data_pd
 
-def read_iso(system):
+def read_iso_darth(age,feh,afe,system):
     if system == 'sdss': 
         f = open('iso/test.iso','r')
         ids = ['mass','teff','logg','sdss_g','sdss_r','sdss_i']
         iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
             header=None,skiprows=9,usecols=(1,2,3,6,7,8))
     elif system == 'wfpc2': 
-        f = open('iso/darth_12gy_wfpc2.iso','r')
+        suffix = '.HST_WFPC2'
+        age_str = "{0:0=5d}".format(int(age*1000))
+        feh_str = "{0:0=3d}".format(int(abs(feh*100)))
+        if feh < 0.0: feh_str = 'fehm'+feh_str
+        if feh >= 0.0: feh_str = 'fehp'+feh_str
+        if afe == -0.2: afe_str = 'afem2'
+        if afe == 0.0: afe_str = 'afep0'
+        if afe == 0.2: afe_str = 'afep2'
+        if afe == 0.4: afe_str = 'afep4'
+        if afe == 0.6: afe_str = 'afep6'
+        if afe == 0.8: afe_str = 'afep8' 
+        isofile = 'a'+age_str+feh_str+afe_str+suffix
+        f = open('iso/'+isofile,'r')
         ids = ['mass','teff','logg','f606w','f814w']
         iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
             header=None,skiprows=9,usecols=(1,2,3,12,16))
+        iso_pd['teff']  = 10.**iso_pd['teff']
         #Convert magnitudes from Vega system to STMAG system
         iso_pd['f606w'] = iso_pd['f606w'] + 23.195 - 22.880
         iso_pd['f814w'] = iso_pd['f814w'] + 22.906 - 21.641
@@ -125,12 +139,6 @@ def read_iso(system):
         pass
     f.close()
     return iso_pd
-
-    """Alternate way of reading in using astropy
-    f = open('iso/test.iso','r')
-    iso2 = ascii.read(f,delimeter=' ',comment='#',header_start=None)
-    f.close()
-     """
 
 def read_dsph_data():
     f=open('mwdwarfs_properties_luis.dat')
@@ -256,8 +264,8 @@ for i in range(0,2):
 mass_min = 0.05
 mass_max = 0.75  #mass max must be below MSTO - make plot to check for this?
 
-#Now import isochrone 
-iso = read_iso(system)
+#Now import isochrone: age,feh,afe 
+iso = read_iso_darth(14.0,-2.5,0.4,system)
 isomass0 = iso['mass']
 if system == 'wfpc2':
     isocol0 = iso['f606w'] - iso['f814w']
