@@ -151,7 +151,7 @@ def read_iso_darth(age,feh,afe,system,**kwargs):
     #of being finely graded in mass or magnitude - need dM intervals to be small
     #relative to the range of mass considered otherwise dN_*(dM) is not accurate.
 
-    iso_pd = iso_pd[(iso_pd['mass'] >= mass_min) & (iso_pd['mass'] <= mass_max)]
+    iso_pd = iso_pd[(iso_pd['mass'] >= mass_min) & (iso_pd['mass'] <= mass_max)].reset_index()
 
     return iso_pd
 
