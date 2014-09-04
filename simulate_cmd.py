@@ -4,9 +4,13 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 from matplotlib import rc
-from scipy.interpolate import interp1d
+from scipy import interpolate
 import pandas as pd
 from mywrangle import *
+
+def find_nearest_above(my_array, target):
+
+    return masked_diff.argmin()
 
 #now specify a Salpeter LF, alpha is exponent in linear eqn, alpha = Gamma + 1
 
@@ -55,12 +59,14 @@ def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
 
 def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,magarr,magerrarr,system,**kwargs):
 
+   testing = 1
+
    if 'imftype' not in kwargs.keys(): raise SystemExit
 
    print "Warning! This program will generate synthetic CMDs"
    print "only for the MS region where the MF = IMF."""
 
-   raw_input("Press any key to continue>>>")
+   #raw_input("Press any key to continue>>>")
 
    if 'mass_min' in kwargs.keys():
        mass_min = kwargs['mass_min']
@@ -109,27 +115,23 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,magarr,magerrarr,system,**
        raise SystemExit
        
 
-   #Now define a fine-coarsed mass array to map to dN/dM, in order to create
-   #the MC sample.
+   #Find min and max in dN/dM in order to set limits in y-axis for random number
+   #generator
 
-   xarr = np.arange(mass_min,mass_max,0.0001)
-
-   #dN/dM = function of M
-
+   xdum = np.arange(mass_min,mass_max,0.0001)
    if kwargs['imftype'] == 'salpeter':
-       yarr = f_salpeter(xarr,mass_min,mass_max,alpha_)
+       ydum = f_salpeter(xdum,mass_min,mass_max,alpha_)
    elif kwargs['imftype'] == 'chabrier':
-       yarr = f_chabrier(xarr,mass_min,mass_max,mc_,sigmac_)
+       ydum = f_chabrier(xdum,mass_min,mass_max,mc_,sigmac_)
 
-   testing = 1
    if testing == 1:
        plt.subplot(1,2,1)
-       plt.plot(xarr,yarr,color='b',ls='-')
-       plt.axis([mass_min,mass_max,yarr.min(),yarr.max()])
+       plt.plot(xdum,ydum,color='b',ls='-')
+       plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
        plt.xlabel(r"$M$") ; plt.ylabel(r"$dN/dM$")
        plt.subplot(1,2,2)
-       plt.loglog(xarr,yarr,color='b',ls='-',basex=10,basey=10)
-       plt.axis([mass_min,mass_max,yarr.min(),yarr.max()])
+       plt.loglog(xdum,ydum,color='b',ls='-',basex=10,basey=10)
+       plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
        plt.xlabel(r"log\,$M$") ; plt.ylabel(r"log\,$dN/dM$")
        #plt.savefig(os.getenv('HOME')+'/Desktop/mass_dndm_function.png',bbox_inches='tight')
        plt.show()
@@ -141,16 +143,63 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,magarr,magerrarr,system,**
    #that fall under dN/dM - M relation.
    np.random.seed(seed=12345)
 
-   xrantmp = np.random.random_sample(nstars*1000) * (mass_max - mass_min) + mass_min
-   yrantmp = np.random.random_sample(nstars*1000) * (yarr.max() - yarr.min()) + yarr.min()
+   #Define limits of masses as lowest isochrone mass and highest isochrone mass *within* the mass cuts
+   #specified as input args. If I use instead those input args directly, some points will be slightly
+   #outside of range of isochrone masses, as mass_min < M_iso < mass_max is set in read_darth_iso, 
+   #causing the spline interpolator to crash later on.
+   xrantmparr = np.random.random_sample(nstars*200) * (iso['mass'].max() - iso['mass'].min()) + iso['mass'].min()
+   yrantmparr = np.random.random_sample(nstars*200) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
+
+   xranarr = np.arange(nstars)*0.0
+   yranarr = np.arange(nstars)*0.0
+
+   #Now find the pairs (x,y) of simulated data that fall under envelope of dN/dM - M relation.
+
+   count = 0
+   for i,xrantmp in enumerate(xrantmparr):
+       if count == nstars: break
+       idx = np.abs(xdum - xrantmp).argmin()
+       if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
+           xranarr[count] = xrantmparr[i]
+           yranarr[count] = yrantmparr[i]
+           count += 1
+       else:
+           pass
+
+   if len(yranarr[yranarr > 0.0]) < nstars:
+       print "Need to generate more samples!"
+       raise SystemExit
 
    if testing == 1:
-       plt.scatter(xrantmp,yrantmp,s=1,c='b',marker='o')
-       plt.plot(xarr,yarr,color='b',ls='-')
-       plt.axis([mass_min,mass_max,yarr.min(),yarr.max()])
+       plt.scatter(xrantmparr,yrantmparr,s=1,c='k',marker='.')
+       plt.scatter(xranarr,yranarr,s=6,c='r',marker='o')
+       plt.plot(xdum,ydum,color='b',ls='-')
+       plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
        plt.xlabel(r"$M$") ; plt.ylabel(r"$dN/dM$")
        plt.show()
 
+   #Interpolate isochrone magnitude-mass relation
+   isort = np.argsort(iso['mass'])  #! argsort = returns indices for sorted array, sort=returns sorted array
+   plt.plot(iso['mass'][isort],iso['f606w'][isort]+dist_mod,'b.',ls='--')
+   plt.show()
+   if system == 'wfpc2':
+       f1 = interpolate.splrep(iso['mass'][isort],iso['f606w'][isort]+dist_mod)
+       f2 = interpolate.splrep(iso['mass'][isort],iso['f814w'][isort]+dist_mod)
+   elif system == 'sdss':
+       pass
+
+   #Assign magnitudes to each star based on their mass and the mass-magnitude relation calculated above.
+   mag1ranarr = interpolate.splev(xranarr,f1)
+   mag2ranarr = interpolate.splev(xranarr,f2)  #band 2 = for system=wfpc2
+   colorranarr  = mag1ranarr - mag2ranarr
+    
+   if testing == 1:   
+       plt.plot(isocol,isomag,ls='-',color='red',lw=2)
+       plt.scatter(colorranarr,mag2ranarr,marker='o',s=3,color='b')
+       plt.axis([isocol.min()-.15,isocol.max()+.15,dist_mod+12,dist_mod-2])
+       plt.show()
+
+   raise SystemExit
 
    #For each data point, find corresponding magnitudes for the mass. 
 
@@ -172,7 +221,7 @@ age = 14.0
 feh = -2.5
 afe = 0.4
 dmod = 22.0
-nstars = 100
+nstars = 1000
 
 magarr = np.arange(18.,28.,.5) + .5  #excludes endpoint 25.
 magerrarr = magarr.copy()
@@ -183,9 +232,9 @@ magerrarr[magarr >= 23] = 0.30
 plt.plot(magarr,magerrarr,'bo')
 plt.show()
 
-data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='salpeter',alpha=2.35,mass_min=0.05,mass_max=0.80)
+data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='salpeter',alpha=2.35,mass_min=0.20,mass_max=0.80)
 
-data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='chabrier',mc=0.4,sigmac=0.2,mass_min=0.05,mass_max=0.80)
+#data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='chabrier',mc=0.4,sigmac=0.2,mass_min=0.05,mass_max=0.80)
 
 #Determine representative errors for bins in magnitude
 
