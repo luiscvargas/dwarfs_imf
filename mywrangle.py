@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
 import pandas as pd
+import pickle
 
 def read_phot(photfile,**kwargs):
     if 'dataset' in kwargs.keys():
@@ -106,6 +107,34 @@ def read_phot(photfile,**kwargs):
     return data_pd
 
 def read_iso_darth(age,feh,afe,system,**kwargs):
+    #get data from pickled isochrone library
+    f = open("iso/"+"dartmouth_"+system+".obj",'rb')
+    isodata = pickle.load(f)
+    f.close()
+    isodata = isodata[(isodata['age'] == age) & (isodata['feh'] == feh) &
+                      (isodata['afe'] == afe)] 
+
+    #Incorporate optional mass cuts into read_iso_darth so that they are not done 
+    #in calling program.
+    if 'mass_min' in kwargs.keys():
+        mass_min = kwargs['mass_min']   
+    else:
+        mass_min = 0.0
+    if 'mass_max' in kwargs.keys():
+        mass_max = kwargs['mass_max']   
+    else:
+        mass_max = 100.0
+
+    isodata = isodata[(isodata['mass'] >= mass_min) & (isodata['mass'] <= mass_max)]
+
+    #Future: possibly interpolate isochrone if it does not satisfy the condition
+    #of being finely graded in mass or magnitude - need dM intervals to be small
+    #relative to the range of mass considered otherwise dN_*(dM) is not accurate.
+
+    return isodata
+
+def read_iso_darth_txt(age,feh,afe,system,**kwargs):
+    
     if system == 'sdss': 
         f = open('iso/test.iso','r')
         ids = ['mass','teff','logg','sdss_g','sdss_r','sdss_i']
@@ -154,6 +183,7 @@ def read_iso_darth(age,feh,afe,system,**kwargs):
     iso_pd = iso_pd[(iso_pd['mass'] >= mass_min) & (iso_pd['mass'] <= mass_max)].reset_index()
 
     return iso_pd
+
 
 def read_dsph_data():
     f=open('mwdwarfs_properties_luis.dat')

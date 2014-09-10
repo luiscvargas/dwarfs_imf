@@ -8,10 +8,6 @@ from scipy import interpolate
 import pandas as pd
 from mywrangle import *
 
-def find_nearest_above(my_array, target):
-
-    return masked_diff.argmin()
-
 #now specify a Salpeter LF, alpha is exponent in linear eqn, alpha = Gamma + 1
 
 def f_salpeter(mass_arr,mass_min,mass_max,alpha):
@@ -57,9 +53,9 @@ def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
     #print P*exp_arg
     return P*exp_arg
 
-def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,magarr,magerrarr,system,**kwargs):
+def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr,inmagerrarr,system,sysmag1,sysmag2,**kwargs):
 
-   testing = 1
+   testing = 0
 
    if 'imftype' not in kwargs.keys(): raise SystemExit
 
@@ -82,14 +78,15 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,magarr,magerrarr,system,**
    iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min,mass_max=mass_max)
 
    isomass = iso['mass'] 
+   isocol = iso[sysmag1] - iso[sysmag2] 
+   isomag = iso[sysmag2] + dist_mod
+
    if system == 'wfpc2':
-       isocol = iso['f606w'] - iso['f814w'] 
-       isomag = iso['f814w'] + dist_mod
        col_name = r'$m_{606w} - m_{814w}$' ; mag_name = r'$m_{814w}$'
    elif system == 'sdss':
-       isocol = iso['sdss_g'] - iso['sdss_r'] 
-       isomag = iso['sdss_r'] + dist_mod
        col_name = r'$(g - r)_0$' ; mag_name = r'$r_0$'
+   elif system == 'acs':
+       col_name = r'$m_{606w} - m_{814w}$' ; mag_name = r'$m_{814w}$'
    else:
        pass
 
@@ -180,23 +177,37 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,magarr,magerrarr,system,**
 
    #Interpolate isochrone magnitude-mass relation
    isort = np.argsort(iso['mass'])  #! argsort = returns indices for sorted array, sort=returns sorted array
-   plt.plot(iso['mass'][isort],iso['f606w'][isort]+dist_mod,'b.',ls='--')
-   plt.show()
-   if system == 'wfpc2':
-       f1 = interpolate.splrep(iso['mass'][isort],iso['f606w'][isort]+dist_mod)
-       f2 = interpolate.splrep(iso['mass'][isort],iso['f814w'][isort]+dist_mod)
-   elif system == 'sdss':
-       pass
+   if testing == 1:
+       plt.plot(iso['mass'][isort],iso[sysmag2][isort]+dist_mod,'b.',ls='--')
+       plt.show()
+   f1 = interpolate.splrep(iso['mass'][isort],iso[sysmag1][isort]+dist_mod)
+   f2 = interpolate.splrep(iso['mass'][isort],iso[sysmag2][isort]+dist_mod)
 
    #Assign magnitudes to each star based on their mass and the mass-magnitude relation calculated above.
-   mag1ranarr = interpolate.splev(xranarr,f1)
-   mag2ranarr = interpolate.splev(xranarr,f2)  #band 2 = for system=wfpc2
-   colorranarr  = mag1ranarr - mag2ranarr
+   mag1ranarr_0 = interpolate.splev(xranarr,f1)
+   mag2ranarr_0 = interpolate.splev(xranarr,f2)  #band 2 = for system=wfpc2
+   colorranarr_0  = mag1ranarr_0 - mag2ranarr_0
+
+   #Initialize data magnitude arrays which will include photometric uncertainties.
+   mag1ranarr = np.arange(len(mag1ranarr_0))*0.0
+   mag2ranarr = np.arange(len(mag1ranarr_0))*0.0
+
+   #Based on mag-errmag relation from input args, assign random Gaussian deviates to each "star".
+   for i,mag in enumerate(mag1ranarr_0):
+       idx = np.abs(mag - inmagarr).argmin()
+       mag1ranarr[i] = mag + inmagerrarr[idx]*np.random.normal()
+   for i,mag in enumerate(mag2ranarr_0):
+       idx = np.abs(mag - inmagarr).argmin()
+       mag2ranarr[i] = mag + inmagerrarr[idx]*np.random.normal()
+
+   colorranarr = mag1ranarr - mag2ranarr
     
-   if testing == 1:   
+   if testing < 10:   
        plt.plot(isocol,isomag,ls='-',color='red',lw=2)
+       plt.xlabel(r"$F606W-F814W$")
+       plt.ylabel(r"$F814W$")
        plt.scatter(colorranarr,mag2ranarr,marker='o',s=3,color='b')
-       plt.axis([isocol.min()-.15,isocol.max()+.15,dist_mod+12,dist_mod-2])
+       plt.axis([isocol.min()-.25,isocol.max()+.25,dist_mod+12,dist_mod-2])
        plt.show()
 
    raise SystemExit
@@ -215,24 +226,44 @@ if len(sys.argv) != 1: sys.exit()
 rc('text', usetex=True)
 rc('font', family='serif')
 
-system = 'wfpc2'
+#The data to be fit is described by one photometric system, and two photometric bands. 
+#By convention, mag2 = mag, and color = mag1 - mag2
+system = 'acs'
+sysmag1   = 'F606W'
+sysmag2   = 'F814W'
 
 age = 14.0
 feh = -2.5
 afe = 0.4
-dmod = 22.0
-nstars = 1000
+dmod = 20.63  #dmod to Hercules
+nstars = 10000
 
-magarr = np.arange(18.,28.,.5) + .5  #excludes endpoint 25.
-magerrarr = magarr.copy()
-magerrarr[magarr < 20] = 0.05
-magerrarr[(magarr >= 20) & (magarr < 23)] = 0.15
-magerrarr[magarr >= 23] = 0.30
+#Define a dummy magnitude, magnitude error array
+#Later: Will import actual observed data and create a magnitude-magnitude error relation instead.
 
-plt.plot(magarr,magerrarr,'bo')
-plt.show()
+magarr = np.arange(22.,30.,.01)  
+if 0:
+    magerrarr = magarr.copy()
+    magerrarr[magarr < 22] = 0.005
+    magerrarr[(magarr >= 22) & (magarr < 24)] = 0.01
+    magerrarr[(magarr >= 24) & (magarr < 26)] = 0.02
+    magerrarr[(magarr >= 26) & (magarr < 28)] = 0.04
+    magerrarr[magarr >= 28] = 0.06
+    plt.plot(magarr,magerrarr,ms=3,color='red')
+    plt.show()
+else:
+    phot = read_phot('Herc',dataset=system,cuts=True)
+    magsort = np.argsort(phot['m606'])
+    p = np.polyfit(phot['m606'][magsort],phot['m606err'][magsort],4,cov=False)
+    magerrarr = np.polyval(p,magarr)
+    magerrarr[magarr <= phot['m606'].min()] = phot['m606err'].min()
+    plt.scatter(phot['m606'],phot['m606err'],s=2,color='blue',marker='^')
+    plt.plot(magarr,magerrarr,ms=3,color='red',lw=2.5)
+    plt.xlabel(r"mag")
+    plt.ylabel(r"$\sigma$(mag)")
+    plt.show()
 
-data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='salpeter',alpha=2.35,mass_min=0.20,mass_max=0.80)
+data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,sysmag1,sysmag2,imftype='salpeter',alpha=2.35,mass_min=0.20,mass_max=0.80)
 
 #data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='chabrier',mc=0.4,sigmac=0.2,mass_min=0.05,mass_max=0.80)
 
