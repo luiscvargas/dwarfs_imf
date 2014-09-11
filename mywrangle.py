@@ -5,106 +5,129 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 import pandas as pd
 import pickle
+import numpy.lib.recfunctions as nlr
 
-def read_phot(photfile,**kwargs):
-    if 'dataset' in kwargs.keys():
-        tel = kwargs['dataset']
-    else:
-        tel = ''
-    #Read-in photometric data, if dataset = 'hst', use HST data otherwise use cfht data
-    if tel == 'wfpc2':
-        f = open(os.getenv('DATA')+'/HST/'+photfile+'_hst.db','r')
-        data_pd = pd.read_csv(f,comment="#",delim_whitespace=True,
-            header=0)
 
-	#Get E(B-V) at direction of dSph
-        dsphs = read_dsph_data()
-        ebv_sfd98  = dsphs.loc[photfile,'ebv'] 
+def read_phot(photfile,system,sysmag1,sysmag2,**kwargs):
+    
+    #Read-in summary properties for MW dSph galaxies
+    dsphs = read_dsph_data()
 
-	#Define ratios of extinction to E(B-V)_SFD98 from Schlafly & Finkbeiner 2011
-        f_m606w = 2.415
-        f_m814w = 1.549
+    #A_X(E(B-V) from Schlafly & Finkbeiner, ApJ (2011), E(B-V) 
+    #MUST be in old SFD98. Coeffs take into acct E(B-V)_SFD98 -> E(B-V)_SF11 correction.
+    ###Alternative: See Yuan, Liu, & Xiang, MNRAS, 430 (2013) for GALEX, SDSS, 2MASS and WISE
+    c_wfcp2 = { 'F555W': 2.755, 'F606W': 2.415, 'F814W': 1.549 }  #WFPC2
+    c_wfc3  = { 'F110W': 0.881, 'F160W': 0.512, 'F555W': 2.855, 'F606W': 2.488, 'F814W': 1.536 }  #WFC3
+    c_acs   = { 'F555W': 2.792, 'F606W': 2.471, 'F814W': 1.526 }  #ACS
+    c_sdss  = { 'u': 4.239, 'g': 3.303, 'r':2.285, 'i':1.698, 'z':1.263 } #SDSS
+    c_cfht  = { 'u': 4.239, 'g': 3.303, 'r':2.285, 'i':1.698, 'z':1.263 } #Assume = SDSS
 
-	#De-redden and correct for extinction, and assign values to color, magnitude, and error series.
-        data_pd['cov'] = 0.0  #assume cov(g,r) = 0.0 for now 
-        data_pd['mag'] = data_pd['m814'] - f_m814w * ebv_sfd98
-        data_pd['col'] = (data_pd['m606'] - f_m606w * ebv_sfd98) - (data_pd['m814'] - f_m814w * ebv_sfd98)
-        data_pd['magerr'] = data_pd['m814err']
-        data_pd['colerr'] = np.sqrt(data_pd['m606err']**2 + data_pd['m814err']**2 - 2.*data_pd['cov'])   
+    #Get E(B-V) at direction of dSph
+    ebv_sfd98  = dsphs.loc[photfile,'ebv'] 
 
-        x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
-        if 'cuts' in kwargs.keys(): 
-            if kwargs['cuts'] == True: data_pd = data_pd[(data_pd['col'] >= x1) & (data_pd['col'] <= x2) & 
-                  (data_pd['m814'] <= y2) & (data_pd['m814'] >= y1) & (data_pd['clip'] == 0)].reset_index()
-
-    elif tel == 'sdss':
+    #Read-in photometric data. Header magnitude titles must match those from the sysmag 
+    #labels used in this project, e.g. F606W, not m606w.
+    if system == 'wfpc2':
+        f = open(os.getenv('DATA')+'/HST/'+photfile+'_wfpc2.db','r')
+        data = np.genfromtxt(f,comments='#',names=True)
+    elif system == 'wfc3':
+        #f = open(os.getenv('DATA')+'/HST/'+photfile+'_wfc3.db','r')
+        pass
+    elif system == 'acs':
+        f = open(os.getenv('DATA')+'/HST/'+photfile+'_acs.db','r')
+        data = np.genfromtxt(f,comments='#',names=True)
+    elif system == 'sdss':
+        #f = open(os.getenv('DATA')+'/SDSS/'+photfile+'_sdss.db','r')
+        pass
+    elif system == 'cfht':
         f = open(os.getenv('DATA')+'/CFHT/'+photfile+'_cfht.db','r')
-        #ids = ['id','ra','dec','g','gerr','r','rerr','chi','sharp',
-        #    'rd','gl','gb','e_gr','a_g','a_r']
-        data_pd = pd.read_csv(f,comment="#",delim_whitespace=True,
-            header=0,skiprows=5) 
-        f.close()
+        pass
 
-        dsphs = read_dsph_data()
-        dmod0  = dsphs.loc[dsph_select,'dmod0'] 
-        ra_dwarf  = dsphs.loc[dsph_select,'ra']  
-        dec_dwarf  = dsphs.loc[dsph_select,'dec']  
-        rhalf_dwarf  = dsphs.loc[dsph_select,'r_h']  
+    #Define additional data columns needed for analysis
+    len_data = len(data[sysmag1])
+    array = np.zeros( (len_data,), dtype=[('covar','f8'),('color','f8'),('colorerr','f8')] )
 
-        data_pd['cov'] = 0.0  #assume cov(g,r) = 0.0 for now 
-        data_pd['grerr'] = np.sqrt(data_pd['gerr']**2 + data_pd['rerr']**2 - 2.*data_pd['cov'])   
-        data_pd['ra'] = data_pd['ra'] * 15.
+    #Join additional columns to data numpy struct array
+    data = nlr.merge_arrays([data,array],flatten=True)
 
-        data_pd['mag'] = data_pd['r'] - data_pd['ar']
-        data_pd['col'] = (data_pd['g'] - data_pd['ag']) - (data_pd['r'] - data_pd['ar'])
-        data_pd['magerr'] = data_pd['rerr']
-        data_pd['colerr'] = data_pd['grerr']
+    #Correct magnitudes for extinction using single value for E(B-V),except for
+    #SDSS/CFHT data
+    if system == 'wfpc2': c_ext = c_wfpc2
+    if system == 'acs'  : c_ext = c_acs
+    if system == 'wfc3' : c_ext = c_wfc3
+    if system == 'sdss' : c_ext = c_sdss
 
-        #Create a mask to only select stars within the central 2 rhalf and 90% completeness
-        n_half = 1
-        dist_center = np.sqrt(((data_pd['ra']-ra_dwarf)*np.cos(dec_dwarf*np.pi/180.))**2 +
-            (data_pd['dec']-dec_dwarf)**2) 
-        data_pd['dist_center'] = dist_center
-
-        if 0:
-            mask = dist_center < n_half*rhalf_dwarf/60. # in deg
-            plt.subplot(1,3,1)
-            plt.scatter(phot['ra'],phot['dec'],color='k',marker='.',s=1)
-            plt.scatter(phot['ra'][mask],phot['dec'][mask],color='r',marker='o',s=2)
-            plt.xlabel(r'$\alpha$',fontdict={'size':12})
-            plt.ylabel(r'$\delta$',fontdict={'size':12})
-            plt.xlim(phot['ra'][mask].min()-.03,phot['ra'][mask].max()+.03)
-            plt.ylim(phot['dec'][mask].min()-.03,phot['dec'][mask].max()+.03)
-            plt.subplot(1,3,2)
-            plt.ylabel(r'$r_0$')
-            plt.xlabel(r'$(g-r)_0$')
-            plt.axis([-0.2,0.75,6.+dmod0,-2+dmod0])
-            plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
-            plt.scatter(phot['col'],phot['mag'],color='k',marker='.',s=1)
-            plt.scatter(phot['col'][mask],phot['mag'][mask],color='r',marker='o',s=2)
-            plt.subplot(1,3,3)
-            n_r , rhist = np.histogram(phot['mag'][mask],bins=50,density=True)
-            n_r_sum = np.cumsum(n_r)
-            n_r_sum = n_r_sum / n_r_sum.max()
-            plt.bar(rhist[:-1],n_r_sum)
-            plt.ylabel(r'$r_0$')
-            plt.xlabel(r'$N_{cumul}$')
-            plt.axis([-2+dmod0,6+dmod0,0,1.1])
-            #plt.savefig(os.getenv('HOME')+'/Desktop/select_region.png',bbox_inches='tight')
-            plt.show()
-
-        if 'cuts' in kwargs.keys(): 
-            if kwargs['cuts'] == True: 
-                rmin_box = float(raw_input('enter minimum rmag>> '))
-                rmax_box = float(raw_input('enter maximum rmag>> '))
-                data_pd = data_pd[(data_pd.dist_center < n_half*rhalf_dwarf/60.) & 
-                (data_pd.mag >= rmin_box) & (data_pd.mag <= rmax_box)].reset_index()
-            else:
-                pass
+    if system != 'sdss' and system != 'cfht':
+        data[sysmag1] = data[sysmag1] - c_ext[sysmag1] * ebv_sfd98
+        data[sysmag2] = data[sysmag2] - c_ext[sysmag2] * ebv_sfd98
     else:
-        raise sys.exit()
+        print '...using extinction values in data table...' 
+        data[sysmag1] = data[sysmag1] - data['a'+sysmag1]
+        data[sysmag2] = data[sysmag2] - data['a'+sysmag2]
+ 
+    #Assign values to the additional columns, AFTER extinction corrections
+    data['covar'] = 0.0  #assume cov(g,r) = 0.0 for now 
+    data['color'] = data[sysmag1] - data[sysmag2]
+    data['colorerr'] = np.sqrt(data[sysmag1]**2 + data[sysmag2]**2 - 2.*data['covar'])   
+
+    #Make data cuts if appropriate
+    if 'cuts' in kwargs.keys(): 
+        if kwargs['cuts'] == True:
+            if system == 'wfpc2':
+                x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
+                data = data[(data['color'] >= x1) & (data['color'] <= x2) & 
+                  (data['F814W'] <= y2) & (data['F814W'] >= y1) & (data['clip'] == 0)]
+
+            elif system == 'sdss':
+
+               dmod0  = dsphs.loc[dsph_select,'dmod0'] 
+               ra_dwarf  = dsphs.loc[dsph_select,'ra']  
+               dec_dwarf  = dsphs.loc[dsph_select,'dec']  
+               rhalf_dwarf  = dsphs.loc[dsph_select,'r_h']  
+
+               ra = data['ra'] * 15.
+               dec = data['dec'] * 15.
+
+               #Create a mask to only select stars within the central 2 rhalf and 90% completeness
+               n_half = 1
+               dist_center = np.sqrt(((ra-ra_dwarf)*np.cos(dec_dwarf*np.pi/180.))**2 +
+                 (dec-dec_dwarf)**2) 
+
+               if 0:
+                   mask = dist_center < n_half*rhalf_dwarf/60. # in deg
+                   plt.subplot(1,3,1)
+                   plt.scatter(data['ra'],data['dec'],color='k',marker='.',s=1)
+                   plt.scatter(data['ra'][mask],data['dec'][mask],color='r',marker='o',s=2)
+                   plt.xlabel(r'$\alpha$',fontdict={'size':12})
+                   plt.ylabel(r'$\delta$',fontdict={'size':12})
+                   plt.xlim(data['ra'][mask].min()-.03,data['ra'][mask].max()+.03)
+                   plt.ylim(data['dec'][mask].min()-.03,data['dec'][mask].max()+.03)
+                   plt.subplot(1,3,2)
+                   plt.ylabel(r'$r_0$')
+                   plt.xlabel(r'$(g-r)_0$')
+                   plt.axis([-0.2,0.75,6.+dmod0,-2+dmod0])
+                   plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
+                   plt.scatter(data['color'],data[sysmag2],color='k',marker='.',s=1)
+                   plt.scatter(data['color'][mask],data[sysmag2][mask],color='r',marker='o',s=2)
+                   plt.subplot(1,3,3)
+                   n_r , rhist = np.histogram(data[sysmag2][mask],bins=50,density=True)
+                   n_r_sum = np.cumsum(n_r)
+                   n_r_sum = n_r_sum / n_r_sum.max()
+                   plt.bar(rhist[:-1],n_r_sum)
+                   plt.ylabel(r'$r_0$')
+                   plt.xlabel(r'$N_{cumul}$')
+                   plt.axis([-2+dmod0,6+dmod0,0,1.1])
+                   #plt.savefig(os.getenv('HOME')+'/Desktop/select_region.png',bbox_inches='tight')
+                   plt.show()
+
+               rmin_box = float(raw_input('enter minimum rmag>> '))
+               rmax_box = float(raw_input('enter maximum rmag>> '))
+               data = data[(dist_center < n_half*rhalf_dwarf/60.) & 
+               (data[sysmag2] >= rmin_box) & (data[sysmag2] <= rmax_box)]
+    else:
+        pass
         
-    return data_pd
+    return data
 
 def read_iso_darth(age,feh,afe,system,**kwargs):
     #get data from pickled isochrone library
@@ -208,3 +231,5 @@ def read_dsph_data():
     dsphs = dsphs1.join(dsphs2,how='inner')  #do not specify on='key' for a given index key IF that key IS the index (here, key=dsph is the index)
 
     return dsphs
+
+
