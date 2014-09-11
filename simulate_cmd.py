@@ -53,7 +53,7 @@ def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
     #print P*exp_arg
     return P*exp_arg
 
-def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr,inmagerrarr,system,sysmag1,sysmag2,**kwargs):
+def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
    testing = 0
 
@@ -193,15 +193,14 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr,inmagerrarr,syste
    mag2ranarr = np.arange(len(mag1ranarr_0))*0.0
 
    #Based on mag-errmag relation from input args, assign random Gaussian deviates to each "star".
-   for i,mag in enumerate(mag1ranarr_0):
-       idx = np.abs(mag - inmagarr).argmin()
-       mag1ranarr[i] = mag + inmagerrarr[idx]*np.random.normal()
-   for i,mag in enumerate(mag2ranarr_0):
-       idx = np.abs(mag - inmagarr).argmin()
-       mag2ranarr[i] = mag + inmagerrarr[idx]*np.random.normal()
+   for i,imag in enumerate(mag1ranarr_0):
+       idx = np.abs(imag - inmagarr1).argmin()
+       print imag,inmagerrarr1[idx]
+       mag1ranarr[i] = imag + inmagerrarr1[idx]*np.random.normal()
+   for i,imag in enumerate(mag2ranarr_0):
+       idx = np.abs(imag - inmagarr2).argmin()
+       mag2ranarr[i] = imag + inmagerrarr2[idx]*np.random.normal()
 
-   colorranarr = mag1ranarr - mag2ranarr
-    
    if testing < 10:   
        plt.plot(isocol,isomag,ls='-',color='red',lw=2)
        plt.xlabel(r"$F606W-F814W$")
@@ -209,8 +208,6 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr,inmagerrarr,syste
        plt.scatter(colorranarr,mag2ranarr,marker='o',s=3,color='b')
        plt.axis([isocol.min()-.25,isocol.max()+.25,dist_mod+12,dist_mod-2])
        plt.show()
-
-   raise SystemExit
 
    #For each data point, find corresponding magnitudes for the mass. 
 
@@ -237,11 +234,14 @@ feh = -2.5
 afe = 0.4
 dmod = 20.63  #dmod to Hercules
 nstars = 10000
+mass_min = 0.20
+mass_max = 0.80
 
 #Define a dummy magnitude, magnitude error array
 #Later: Will import actual observed data and create a magnitude-magnitude error relation instead.
 
-magarr = np.arange(22.,30.,.01)  
+magarr1 = np.arange(22.,30.,.01)  ; magarr2 = magarr1.copy()
+
 if 0:
     magerrarr = magarr.copy()
     magerrarr[magarr < 22] = 0.005
@@ -249,21 +249,30 @@ if 0:
     magerrarr[(magarr >= 24) & (magarr < 26)] = 0.02
     magerrarr[(magarr >= 26) & (magarr < 28)] = 0.04
     magerrarr[magarr >= 28] = 0.06
+    magerrarr1 = magerrarr.copy()
+    magerrarr2 = magerrarr.copy()
     plt.plot(magarr,magerrarr,ms=3,color='red')
     plt.show()
 else:
-    phot = read_phot('Herc',dataset=system,cuts=True)
-    magsort = np.argsort(phot['m606'])
-    p = np.polyfit(phot['m606'][magsort],phot['m606err'][magsort],4,cov=False)
-    magerrarr = np.polyval(p,magarr)
-    magerrarr[magarr <= phot['m606'].min()] = phot['m606err'].min()
-    plt.scatter(phot['m606'],phot['m606err'],s=2,color='blue',marker='^')
-    plt.plot(magarr,magerrarr,ms=3,color='red',lw=2.5)
+    phot = read_phot('Herc',system,sysmag1,sysmag2,cuts=True)
+    #raise SystemExit
+    magsort1 = np.argsort(phot['F606W'])
+    magsort2 = np.argsort(phot['F814W'])
+    p1 = np.polyfit(phot['F606W'][magsort1],phot['F606Werr'][magsort1],4,cov=False)
+    p2 = np.polyfit(phot['F814W'][magsort2],phot['F814Werr'][magsort2],4,cov=False)
+    magerrarr1 = np.polyval(p1,magarr1)
+    magerrarr1[magarr1 <= phot['F606W'].min()] = phot['F606Werr'].min()
+    magerrarr2 = np.polyval(p2,magarr2)
+    magerrarr2[magarr2 <= phot['F814W'].min()] = phot['F814Werr'].min()
+    plt.scatter(phot['F606W'],phot['F606Werr'],s=2,color='blue',marker='^')
+    plt.scatter(phot['F814W'],phot['F814Werr'],s=2,color='red',marker='^')
+    plt.plot(magarr1,magerrarr1,ms=3,color='green',lw=2.5,ls='-.')
+    plt.plot(magarr2,magerrarr2,ms=3,color='magenta',lw=2.5,ls='--')
     plt.xlabel(r"mag")
     plt.ylabel(r"$\sigma$(mag)")
     plt.show()
 
-data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,sysmag1,sysmag2,imftype='salpeter',alpha=2.35,mass_min=0.20,mass_max=0.80)
+data = simulate_cmd(nstars,age,feh,afe,dmod,magarr1,magerrarr1,magarr2,magerrarr2,system,sysmag1,sysmag2,imftype='salpeter',alpha=2.35,mass_min=mass_min,mass_max=mass_max)
 
 #data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='chabrier',mc=0.4,sigmac=0.2,mass_min=0.05,mass_max=0.80)
 
