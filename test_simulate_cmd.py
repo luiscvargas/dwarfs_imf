@@ -191,14 +191,18 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    #Initialize data magnitude arrays which will include photometric uncertainties.
    mag1ranarr = np.arange(len(mag1ranarr_0))*0.0
    mag2ranarr = np.arange(len(mag1ranarr_0))*0.0
+   mag1ranerrarr = np.arange(len(mag1ranarr_0))*0.0
+   mag2ranerrarr = np.arange(len(mag1ranarr_0))*0.0
 
    #Based on mag-errmag relation from input args, assign random Gaussian deviates to each "star".
    for i,imag in enumerate(mag1ranarr_0):
        idx = np.abs(imag - inmagarr1).argmin()
        mag1ranarr[i] = imag + inmagerrarr1[idx]*np.random.normal()
+       mag1ranerrarr[i] = inmagerrarr1[idx]
    for i,imag in enumerate(mag2ranarr_0):
        idx = np.abs(imag - inmagarr2).argmin()
        mag2ranarr[i] = imag + inmagerrarr2[idx]*np.random.normal()
+       mag2ranerrarr[i] = inmagerrarr2[idx]
  
    colorranarr = mag1ranarr - mag2ranarr
 
@@ -210,14 +214,42 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        plt.axis([isocol.min()-.25,isocol.max()+.25,dist_mod+12,dist_mod-2])
        plt.show()
 
-   #For each data point, find corresponding magnitudes for the mass. 
+   #Now package data into structure numpy array just as real photometric data 
 
-   #Given mags and assumed magnitude error characteristics (e.g., error = f(mag)),
-   #add noise to each magnitude value. 
-  
-   #Output data as pd dataframe analogous with that output by read_phot() - ie
-   #so that it can be passed to main.py just as real data. 
+   dtypes_simdata=[('covar','f8'),('color','f8'),('colorerr','f8')]
 
+   #Simulated data right now consists of magnitudes and magnitude errors, where the latter is set 
+   #by the input mag-magerr relation arguments to simulate_cmd() module.
+   #perhaps later can include RA, Dec if want to model spatial variation.
+   if system == 'wfpc2':
+       dtypes = [('F555W','f8'),('F606W','f8'),('F814W','f8'),('F555Werr','f8'),('F606Werr','f8'),('F814Werr','f8')]
+   elif system == 'wfc3':
+       dtypes = [('F110W','f8'),('F160W','f8'),('F555W','f8'),('F606W','f8'),('F814W','f8'),
+                 ('F110Werr','f8'),('F160Werr','f8'),('F555Werr','f8'),('F606Werr','f8'),('F814Werr','f8')]
+   elif system == 'acs':
+       dtypes = [('F555W','f8'),('F606W','f8'),('F814W','f8'),('F555Werr','f8'),('F606Werr','f8'),('F814Werr','f8')]
+   elif system == 'sdss':
+       dtypes = [('u','f8'),('g','f8'),('r','f8'),('i','f8'),('z','f8'),('uerr','f8'),('gerr','f8'),('rerr','f8'),('gerr','f8'),('rerr','f8')]
+   elif system == 'cfht':
+       dtypes = [('u','f8'),('g','f8'),('r','f8'),('i','f8'),('z','f8'),('uerr','f8'),('gerr','f8'),('rerr','f8'),('gerr','f8'),('rerr','f8')]
+
+   dtypes = dtypes_simdata + dtypes
+
+   simdata = np.zeros( (nstars,), dtype=dtypes )
+
+   print "simdata dtypes : ",simdata.dtype.names
+
+   simdata[sysmag1] = mag1ranarr
+   simdata[sysmag2] = mag2ranarr
+   simdata[sysmag1+'err'] = mag1ranerrarr
+   simdata[sysmag2+'err'] = mag2ranerrarr
+
+   simdata['covar'] = 0.0  #assume cov(g,r) = 0.0 for now 
+   simdata['color'] = simdata[sysmag1] - simdata[sysmag2]
+   simdata['colorerr'] = np.sqrt(simdata[sysmag1]**2 + simdata[sysmag2]**2 - 2.*simdata['covar']) 
+
+   return simdata
+   
 
 #Set env variables for latex-style plotting
 if len(sys.argv) != 1: sys.exit()
@@ -230,10 +262,10 @@ system = 'acs'
 sysmag1   = 'F606W'
 sysmag2   = 'F814W'
 
-age = 14.0
-feh = -2.5
-afe = 0.4
-dmod = 20.63  #dmod to Hercules
+isoage = 14.0
+isofeh = -2.5
+isoafe = 0.4
+dmod0 = 20.63  #dmod to Hercules
 nstars = 10000
 mass_min = 0.20
 mass_max = 0.80
@@ -273,21 +305,32 @@ else:
     plt.ylabel(r"$\sigma$(mag)")
     plt.show()
 
-data = simulate_cmd(nstars,age,feh,afe,dmod,magarr1,magerrarr1,magarr2,magerrarr2,system,sysmag1,sysmag2,imftype='salpeter',alpha=2.35,mass_min=mass_min,mass_max=mass_max)
+data = simulate_cmd(nstars,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,system,sysmag1,sysmag2,imftype='salpeter',
+   alpha=2.35,mass_min=mass_min,mass_max=mass_max)
 
 #data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='chabrier',mc=0.4,sigmac=0.2,mass_min=0.05,mass_max=0.80)
 
 #Determine representative errors for bins in magnitude
 
+iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min,mass_max=mass_max)
+
+isomass = iso['mass'] 
+isocol = iso[sysmag1] - iso[sysmag2] 
+isomag = iso[sysmag2] + dmod0
+
+plt.plot(isocol,isomag,ls='-',color='red',lw=2)
+plt.xlabel(r"$F606W-F814W$")
+plt.ylabel(r"$F814W$")
+plt.scatter(data['color'],data[sysmag2],marker='o',s=3,color='b')
+plt.axis([isocol.min()-.25,isocol.max()+.25,dmod0+12,dmod0-2])
+plt.show()
+
 if 0:
+
    plt.plot(isocol0,isomag0,lw=1,ls='-')
    plt.plot(isocol,isomag,lw=3,ls='--')
    plt.ylabel(mag_name)
    plt.xlabel(col_name)
-   if system == 'wfpc2': plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
-   if system == 'sdss': plt.axis([-1.25,0.75,6.+dmod0,-2+dmod0])
-   if system == 'wfpc2': plt.errorbar(-0.9+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
-   if system == 'sdss': plt.errorbar(-0.2+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
    plt.scatter(phot_raw['col'],phot_raw['mag'],color='k',marker='.',s=1)
    plt.scatter(phot['col'],phot['mag'],color='r',marker='o',s=2)
    #plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
