@@ -161,6 +161,40 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        plt.axis([isocol.min()-.25,isocol.max()+.25,dist_mod+12,dist_mod-2])
        plt.show()
 
+   #Now package data into structure numpy array just as real photometric data 
+
+   dtypes_simdata=[('covar','f8'),('color','f8'),('colorerr','f8')]
+
+   #Simulated data right now consists of magnitudes and magnitude errors, where the latter is set 
+   #by the input mag-magerr relation arguments to simulate_cmd() module.
+   #perhaps later can include RA, Dec if want to model spatial variation.
+   if system == 'wfpc2':
+       dtypes = [('F555W','f8'),('F606W','f8'),('F814W','f8'),('F555Werr','f8'),('F606Werr','f8'),('F814Werr','f8')]
+   elif system == 'wfc3':
+       dtypes = [('F110W','f8'),('F160W','f8'),('F555W','f8'),('F606W','f8'),('F814W','f8'),
+                 ('F110Werr','f8'),('F160Werr','f8'),('F555Werr','f8'),('F606Werr','f8'),('F814Werr','f8')]
+   elif system == 'acs':
+       dtypes = [('F555W','f8'),('F606W','f8'),('F814W','f8'),('F555Werr','f8'),('F606Werr','f8'),('F814Werr','f8')]
+   elif system == 'sdss':
+       dtypes = [('u','f8'),('g','f8'),('r','f8'),('i','f8'),('z','f8'),('uerr','f8'),('gerr','f8'),('rerr','f8'),('gerr','f8'),('rerr','f8')]
+   elif system == 'cfht':
+       dtypes = [('u','f8'),('g','f8'),('r','f8'),('i','f8'),('z','f8'),('uerr','f8'),('gerr','f8'),('rerr','f8'),('gerr','f8'),('rerr','f8')]
+
+   dtypes = dtypes_simdata + dtypes
+
+   simdata = np.zeros( (nstars,), dtype=dtypes )
+
+   simdata[sysmag1] = mag1ranarr
+   simdata[sysmag2] = mag2ranarr
+   simdata[sysmag1+'err'] = mag1ranerrarr
+   simdata[sysmag2+'err'] = mag2ranerrarr
+
+   simdata['covar'] = 0.0  #assume cov(g,r) = 0.0 for now 
+   simdata['color'] = simdata[sysmag1] - simdata[sysmag2]
+   simdata['colorerr'] = np.sqrt(simdata[sysmag1]**2 + simdata[sysmag2]**2 - 2.*simdata['covar']) 
+
+   return simdata
+
 #now specify a Salpeter LF, alpha is exponent in linear eqn, alpha = Gamma + 1
 
 def f_salpeter(mass_arr,mass_min,mass_max,alpha):
