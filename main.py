@@ -18,7 +18,7 @@ sim = 1
 
 if sim == 1:
 
-    titlestring = 'Simulated'
+    alpha_in = 2.35
 
     system = 'acs'
     sysmag1   = 'F606W'
@@ -31,6 +31,8 @@ if sim == 1:
     nstars = 4500
     mass_min = 0.20
     mass_max = 0.80
+
+    titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
     #Use Herc data to model error as a function of magnitude
     phot = read_phot('Herc',system,sysmag1,sysmag2,cuts=True)
@@ -50,7 +52,7 @@ if sim == 1:
     #Create simulated data. simulate_cmd module called from myanalysis.py
     #For test version, see test_simulate_cmd.py
     phot = simulate_cmd(nstars,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-    system,sysmag1,sysmag2,imftype='salpeter',alpha=2.35,mass_min=mass_min,mass_max=mass_max)
+    system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min,mass_max=mass_max)
 
     phot_raw = np.copy(phot)
 
@@ -71,7 +73,7 @@ elif sim == 0:
     mass_max = 0.75  #mass max must be below MSTO - make plot to check for this?
 
     dsph_select = str(sys.argv[1])
-    titlestring = dsph_select
+    titlestring = dsph_select+' CMD'
 
     #Read-in MW dwarf spheroidal data, e.g., Mv, distance modulus, velocity dispersion
     #The data comes from a data table I try to maintain updated with high quality data 
@@ -123,11 +125,11 @@ isocol0 = iso0[sysmag1] - iso0[sysmag2]
 isomag0 = iso0[sysmag2] + dmod0
 
 if system == 'wfpc2':
-    col_name = r'F606W - F814W' ; mag_name = r'F814W'
+    col_name = r'F606W - F814W (WFPC2)' ; mag_name = r'F814W (WFPC2)'
 elif system == 'sdss':
     col_name = r'$(g - r)_0$' ; mag_name = r'$r_0$'
 if system == 'acs':
-    col_name = r'F606W - F814W' ; mag_name = r'F814W'
+    col_name = r'F606W - F814W (ACS)' ; mag_name = r'F814W (ACS)'
 else:
     pass
 
@@ -135,7 +137,7 @@ else:
 #isomag = isomag0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 #isomass = isomass0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
 
-if 1:
+if 0:
    plt.plot(isocol0,isomag0,lw=1,ls='-')
    plt.plot(isocol,isomag,lw=3,ls='--')
    plt.ylabel(mag_name)
@@ -166,7 +168,8 @@ isocol = f(x)
 
 #Loop over data points and isochrone points 
 
-alpha_arr = [1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
+#alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
+alpha_arr = np.array([1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6])
 logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
 tic = timeit.default_timer()
@@ -185,7 +188,7 @@ for ialpha,alpha in enumerate(alpha_arr):
         if L_tmp >= 1e-200: logL_tmp = np.log(L_tmp)
         logL_i += logL_tmp
         print i,logL_i
-        if 1:
+        if 0:
             plt.subplot(2,2,1)
             plt.ylabel(r'$\rho$exp(...)')
             plt.plot(isomass,a*dN,'bo',ms=3,ls='-')
@@ -204,14 +207,80 @@ for ialpha,alpha in enumerate(alpha_arr):
             plt.show()
     logL_arr[ialpha] = logL_i   
 
-print alpha_arr
-print logL_arr
+#logL_arr = logL_arr - logL_arr.min()
 
-plt.plot(alpha_arr,logL_arr,'bo',markersize=5)
-plt.title(r'ln\,$L$ as Func of $\alpha$')
+nlogL_arr = -1.0*logL_arr + logL_arr.max() + 1
+
+#Post-analysis for lnL curve: find best fitting power-law alpha and its uncertainties 
+#from -lnL + 1/2. (chi^2+1)
+
+s = interpolate.InterpolatedUnivariateSpline(alpha_arr,nlogL_arr)
+xtmparr = np.arange(alpha_arr.min(),alpha_arr.max(),0.01)
+ytmparr = s(xtmparr)
+
+
+print xtmparr
+print ytmparr
+#find value for minimum 
+hh = np.argmin(ytmparr)
+alpha_fit = xtmparr[hh] ; Lfit = ytmparr[hh]
+hh = np.argmin(abs(ytmparr[xtmparr < alpha_fit]-(Lfit+0.5)))
+alpha_minus = xtmparr[xtmparr < alpha_fit][hh]
+hh = np.argmin(abs(ytmparr[xtmparr > alpha_fit]-(Lfit+0.5)))
+alpha_plus = xtmparr[xtmparr > alpha_fit][hh]
+delta_plus = alpha_plus - alpha_fit
+delta_minus = alpha_fit - alpha_plus 
+
+plt.subplot(1,2,1) 
+if system == 'acs': 
+    xmin = -1.25; xmax = 0.75; ymax = 10+dmod0; ymin = dmod0
+    plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
+if system == 'wfpc2': 
+    xmin = -1.25; xmax = 0.75; ymax = 10+dmod0; ymin = dmod0
+    plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
+if system == 'sdss': 
+    xmin = -1.25; xmax = 0.75; ymax = 6.+dmod0; ymin = -2.+dmod0
+plt.plot(isocol0,isomag0,lw=1,ls='-')
+plt.plot(isocol,isomag,lw=3,ls='--')
+plt.ylabel(mag_name)
+plt.xlabel(col_name)
+plt.axis([xmin,xmax,ymax,ymin])
+plt.errorbar(xmin+.35+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
+plt.scatter(phot_raw['color'],phot_raw[sysmag2],color='k',marker='.',s=1)
+plt.scatter(phot['color'],phot[sysmag2],color='r',marker='o',s=2)
+#plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
+plt.title(titlestring)  #loc=1, urh; loc=2: ul; 3: ll; 4: lr; 5: r
+
+if sim == 1:
+    plt.text(xmax-.90,ymin+0.5,r'$\alpha_{in}$='+'{0:5.2f}'.format(alpha_in)+'',fontsize=11)
+
+plt.text(xmax-.90,ymin+0.8,r''+'{0:5.2f}'.format(mass_min)+' $<$ M $<$ '+'{0:5.2f}'.format(mass_max)+'',fontsize=11)
+plt.text(xmax-.90,ymin+1.1,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',fontsize=11)
+plt.text(xmax-.90,ymin+1.4,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
+plt.text(xmax-.90,ymin+1.7,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
+
+    #isoage = 14.0
+    #isofeh = -2.5
+    #isoafe =  0.4
+    #dmod0  = 20.63  #dmod to Hercules
+    #nstars = 4500
+    #mass_min = 0.20
+    #mass_max = 0.80
+
+
+plt.subplot(1,2,2) 
+xmin = alpha_arr.min()-.2; xmax = alpha_arr.max()+.2 
+ymax = nlogL_arr.max()+.1*(nlogL_arr.max()-nlogL_arr.min()); ymin = nlogL_arr.min()-.1*(nlogL_arr.max()-nlogL_arr.min())
+plt.plot(alpha_arr,nlogL_arr,'bo',markersize=7)
+plt.plot(xtmparr,ytmparr,ls='--',lw=1.25,color='blue')
+plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
+plt.axis([xmin,xmax,ymin,ymax])
+plt.title(r'Best-Fit Power-Law IMF')
 plt.xlabel(r'$\alpha$')
-plt.ylabel(r'ln\,$L$')
+plt.ylabel(r'$-$ln\,$L$ + $k$')
 #plt.savefig(os.getenv('HOME')+'/Desktop/alpha_lnL.png',bbox_inches='tight')
+plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-ymin),r'$\alpha\,='+'{0:5.2f}'.format(alpha_fit)+'^{'+
+    '{0:+5.2f}'.format(delta_plus)+'}_{'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
 plt.show()
 
 """
@@ -219,15 +288,7 @@ markers:  .  ,  o  v  ^  >  <  1  2  3  4  8  s  p  *  h  H  +  x  D  d  |   _
 colors:  (R,G,B)-tuple, OR #aaffhh <html>, OR b,g,r,c,m,y,k,w, OR html names, eg burlywood
 """
 
-
-
 """
-plt.scatter(phot['r'],phot['g'],c=['k'],marker='.',s=1)
-plt.xlim(16,22)
-plt.ylim(16,22)
-plt.show()
-"""
-
 plt.subplot(1,2,1)
 plt.scatter(phot['ra'],phot['dec'],c='k',marker='.',s=1)
 plt.xlabel(r'$\alpha$',fontdict={'size':12})
@@ -244,6 +305,9 @@ plt.errorbar(0.0*magerrmean,rbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='mage
 plt.scatter(phot['col'],phot['mag'],color='b',marker='.',s=1)
 plt.plot(isocol0,isomag0+dmod0,'r.',linestyle='-',lw=1.0)
 plt.show()
+"""
+
+
 
 """
 
