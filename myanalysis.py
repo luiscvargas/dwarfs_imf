@@ -142,14 +142,18 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    #Initialize data magnitude arrays which will include photometric uncertainties.
    mag1ranarr = np.arange(len(mag1ranarr_0))*0.0
    mag2ranarr = np.arange(len(mag1ranarr_0))*0.0
+   mag1ranerrarr = np.arange(len(mag1ranarr_0))*0.0
+   mag2ranerrarr = np.arange(len(mag1ranarr_0))*0.0
 
    #Based on mag-errmag relation from input args, assign random Gaussian deviates to each "star".
    for i,imag in enumerate(mag1ranarr_0):
        idx = np.abs(imag - inmagarr1).argmin()
        mag1ranarr[i] = imag + inmagerrarr1[idx]*np.random.normal()
+       mag1ranerrarr[i] = inmagerrarr1[idx]
    for i,imag in enumerate(mag2ranarr_0):
        idx = np.abs(imag - inmagarr2).argmin()
        mag2ranarr[i] = imag + inmagerrarr2[idx]*np.random.normal()
+       mag2ranerrarr[i] = inmagerrarr2[idx]
 
    colorranarr = mag1ranarr - mag2ranarr
 
