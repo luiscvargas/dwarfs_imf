@@ -15,18 +15,9 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    #raw_input("Press any key to continue>>>")
 
-   if 'mass_min' in kwargs.keys():
-       mass_min = kwargs['mass_min']
-   else: mass_min = 0.05
-
-   if 'mass_max' in kwargs.keys():
-       mass_max = kwargs['mass_max']
-   else: mass_max = 0.80
-
-   if mass_max <= mass_min: raise SystemExit
-
    #Now import isochrone of given age, [Fe/H], [a/Fe], making desired mass cuts for fitting
-   iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min,mass_max=mass_max)
+   iso = read_iso_darth(isoage,isofeh,isoafe,system)
+   #iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min,mass_max=mass_max)
 
    isomass = iso['mass'] 
    isocol = iso[sysmag1] - iso[sysmag2] 
@@ -40,6 +31,18 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        col_name = r'$m_{606w} - m_{814w}$' ; mag_name = r'$m_{814w}$'
    else:
        pass
+
+   if 'mass_min' in kwargs.keys():
+       mass_min = kwargs['mass_min']
+   else: mass_min = 0.05
+
+   if 'mass_max' in kwargs.keys():
+       mass_max = kwargs['mass_max']
+   else: mass_max = 0.80
+
+   if mass_max <= mass_min: raise SystemExit
+   if mass_min <= iso['mass'].min(): mass_min = iso['mass'].min()
+   if mass_max >= iso['mass'].max(): mass_min = iso['mass'].max()
 
    if kwargs['imftype'] == 'salpeter':
        if 'alpha' not in kwargs.keys():
@@ -95,21 +98,25 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    #specified as input args. If I use instead those input args directly, some points will be slightly
    #outside of range of isochrone masses, as mass_min < M_iso < mass_max is set in read_darth_iso, 
    #causing the spline interpolator to crash later on.
-   xrantmparr = np.random.random_sample(nstars*200) * (iso['mass'].max() - iso['mass'].min()) + iso['mass'].min()
-   yrantmparr = np.random.random_sample(nstars*200) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
+
+   #xrantmparr = np.random.random_sample(nstars*200) * (iso['mass'].max() - iso['mass'].min()) + iso['mass'].min()
+   #yrantmparr = np.random.random_sample(nstars*200) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
+   xrantmparr = np.random.random_sample(nstars*20) * (mass_max - mass_min) + mass_min   
+   yrantmparr = np.random.random_sample(nstars*20) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
 
    xranarr = np.arange(nstars)*0.0
    yranarr = np.arange(nstars)*0.0
 
    #Now find the pairs (x,y) of simulated data that fall under envelope of dN/dM - M relation.
-
    count = 0
    for i,xrantmp in enumerate(xrantmparr):
        if count == nstars: break
        idx = np.abs(xdum - xrantmp).argmin()
-       if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
+       #if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
+       if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > mass_min) & (xdum[idx] < mass_max):
            xranarr[count] = xrantmparr[i]
            yranarr[count] = yrantmparr[i]
+           #print count,xrantmparr[i],yrantmparr[i],xranarr[count],yranarr[count]
            count += 1
        else:
            pass
@@ -262,7 +269,8 @@ def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
 def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax,**kwargs):
     '''Given a number of desired stars N, estimate how many
     should be asked for from the full LF so that approx N 
-    stars remain after magnitude cuts'''
+    stars remain after magnitude cuts. The kwarfs are imftype and alpha, or
+    imftype, mc, and sigmac'''
 
     #Read in isochorne to get magnitude at given mass
     iso = read_iso_darth(age,feh,afe,system)
@@ -308,7 +316,7 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
     else:
         raise SystemExit
 
-    print f_all, f_cut
+    print 'F_all, F_cut  =  ',f_all, f_cut
 
-    return nrequired * (f_all / f_cut)
+    return int(nrequired * (f_all / f_cut))
     
