@@ -216,7 +216,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    #Now package data into structure numpy array just as real photometric data 
 
-   dtypes_simdata=[('covar','f8'),('color','f8'),('colorerr','f8')]
+   dtypes_simdata=[('covar','f8'),('color','f8'),('colorerr','f8'),('clip','f8')]
 
    #Simulated data right now consists of magnitudes and magnitude errors, where the latter is set 
    #by the input mag-magerr relation arguments to simulate_cmd() module.
@@ -244,6 +244,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    simdata[sysmag1+'err'] = mag1ranerrarr
    simdata[sysmag2+'err'] = mag2ranerrarr
 
+   simdata['clip'] = 0  
    simdata['covar'] = 0.0  #assume cov(g,r) = 0.0 for now 
    simdata['color'] = simdata[sysmag1] - simdata[sysmag2]
    simdata['colorerr'] = np.sqrt(simdata[sysmag1]**2 + simdata[sysmag2]**2 - 2.*simdata['covar']) 
@@ -287,7 +288,7 @@ if 0:
     plt.plot(magarr,magerrarr,ms=3,color='red')
     plt.show()
 else:
-    phot = read_phot('Herc',system,sysmag1,sysmag2,cuts=True)
+    phot = read_phot('Herc',system,sysmag1,sysmag2)
     #raise SystemExit
     magsort1 = np.argsort(phot['F606W'])
     magsort2 = np.argsort(phot['F814W'])
@@ -306,7 +307,8 @@ else:
     plt.show()
 
 data = simulate_cmd(nstars,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,system,sysmag1,sysmag2,imftype='salpeter',
-   alpha=2.35,mass_min=mass_min,mass_max=mass_max)
+   alpha=2.35,mass_max=mass_max)
+
 
 #data = simulate_cmd(nstars,age,feh,afe,dmod,magarr,magerrarr,system,imftype='chabrier',mc=0.4,sigmac=0.2,mass_min=0.05,mass_max=0.80)
 

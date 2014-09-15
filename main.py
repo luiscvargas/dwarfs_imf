@@ -58,10 +58,14 @@ if sim == 1:
 
     #magerrarr1 = magerrarr1*0 + .05
     #magerrarr2 = magerrarr2*0 + .05
+    #mass_min cut not included: want all stars in cmd to avoid malmquist bias
+    #upper mass cut more complex: imf is zero-age imf, whereas LF changes with
+    #age.
     phot = simulate_cmd(nstars,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
     system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_max=mass_max)
 
     phot_raw = np.copy(phot)
+    phot     = filter_phot(phot,system,sysmag1,sysmag2)
 
 elif sim == 0:
 
@@ -177,7 +181,7 @@ isocol = f(x)
 #Loop over data points and isochrone points 
 
 #alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
-alpha_arr = np.array([1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2])
+alpha_arr = np.array([0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
 logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
 tic = timeit.default_timer()
