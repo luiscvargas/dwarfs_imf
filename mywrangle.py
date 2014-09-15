@@ -8,7 +8,7 @@ import pickle
 import numpy.lib.recfunctions as nlr
 
 
-def read_phot(photfile,system,sysmag1,sysmag2,**kwargs):
+def read_phot(photfile,system,sysmag1,sysmag2):
     
     #Read-in summary properties for MW dSph galaxies
     dsphs = read_dsph_data()
@@ -43,9 +43,14 @@ def read_phot(photfile,system,sysmag1,sysmag2,**kwargs):
         f = open(os.getenv('DATA')+'/CFHT/'+photfile+'_cfht.db','r')
         pass
 
+    dtypes_extra = [('covar','f8'),('color','f8'),('colorerr','f8')]
+ 
+    if 'ra' not in data.dtype.names:
+        dtypes_extra = dtypes_extra + [ ('ra','f8'),('dec','f8') ]
+
     #Define additional data columns needed for analysis
     len_data = len(data[sysmag1])
-    array = np.zeros( (len_data,), dtype=[('covar','f8'),('color','f8'),('colorerr','f8')] )
+    array = np.zeros( (len_data,), dtype=dtypes_extra )
 
     #Join additional columns to data numpy struct array
     data = nlr.merge_arrays([data,array],flatten=True)
@@ -70,60 +75,97 @@ def read_phot(photfile,system,sysmag1,sysmag2,**kwargs):
     data['color'] = data[sysmag1] - data[sysmag2]
     data['colorerr'] = np.sqrt(data[sysmag1]**2 + data[sysmag2]**2 - 2.*data['covar'])   
 
-    #Make data cuts if appropriate
-    if 'cuts' in kwargs.keys(): 
-        if kwargs['cuts'] == True:
-            if system == 'wfpc2':
-                x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
-                data = data[(data['color'] >= x1) & (data['color'] <= x2) & 
-                  (data['F814W'] <= y2) & (data['F814W'] >= y1) & (data['clip'] == 0)]
+    return data
 
-            elif system == 'sdss':
+def filter_phot(data,system,sysmag1,sysmag2):
 
-               dmod0  = dsphs.loc[dsph_select,'dmod0'] 
-               ra_dwarf  = dsphs.loc[dsph_select,'ra']  
-               dec_dwarf  = dsphs.loc[dsph_select,'dec']  
-               rhalf_dwarf  = dsphs.loc[dsph_select,'r_h']  
+    if system == 'acs':
+        x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
+        data = data[(data['color'] >= x1) & (data['color'] <= x2) & 
+        (data['F814W'] <= y2) & (data['F814W'] >= y1) & (data['clip'] == 0)]
+        if sysmag2 != 'F814W' or sysmag1 != 'F606W':
+            print 'Cuts require sysmag1=F606W, sysmag2=F814'
+            raise SystemExit
 
-               ra = data['ra'] * 15.
-               dec = data['dec'] * 15.
+    if system == 'wfpc2':
+        x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
+        data = data[(data['color'] >= x1) & (data['color'] <= x2) & 
+        (data['F814W'] <= y2) & (data['F814W'] >= y1) & (data['clip'] == 0)]
+        if sysmag2 != 'F814W' or sysmag1 != 'F606W':
+            print 'Cuts require sysmag1=F606W, sysmag2=F814'
+            raise SystemExit
 
-               #Create a mask to only select stars within the central 2 rhalf and 90% completeness
-               n_half = 1
-               dist_center = np.sqrt(((ra-ra_dwarf)*np.cos(dec_dwarf*np.pi/180.))**2 +
-                 (dec-dec_dwarf)**2) 
+    if system == 'wfc3':
+        print 'not cuts defined yet'
+        raise SystemExit
 
-               if 0:
-                   mask = dist_center < n_half*rhalf_dwarf/60. # in deg
-                   plt.subplot(1,3,1)
-                   plt.scatter(data['ra'],data['dec'],color='k',marker='.',s=1)
-                   plt.scatter(data['ra'][mask],data['dec'][mask],color='r',marker='o',s=2)
-                   plt.xlabel(r'$\alpha$',fontdict={'size':12})
-                   plt.ylabel(r'$\delta$',fontdict={'size':12})
-                   plt.xlim(data['ra'][mask].min()-.03,data['ra'][mask].max()+.03)
-                   plt.ylim(data['dec'][mask].min()-.03,data['dec'][mask].max()+.03)
-                   plt.subplot(1,3,2)
-                   plt.ylabel(r'$r_0$')
-                   plt.xlabel(r'$(g-r)_0$')
-                   plt.axis([-0.2,0.75,6.+dmod0,-2+dmod0])
-                   plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
-                   plt.scatter(data['color'],data[sysmag2],color='k',marker='.',s=1)
-                   plt.scatter(data['color'][mask],data[sysmag2][mask],color='r',marker='o',s=2)
-                   plt.subplot(1,3,3)
-                   n_r , rhist = np.histogram(data[sysmag2][mask],bins=50,density=True)
-                   n_r_sum = np.cumsum(n_r)
-                   n_r_sum = n_r_sum / n_r_sum.max()
-                   plt.bar(rhist[:-1],n_r_sum)
-                   plt.ylabel(r'$r_0$')
-                   plt.xlabel(r'$N_{cumul}$')
-                   plt.axis([-2+dmod0,6+dmod0,0,1.1])
-                   #plt.savefig(os.getenv('HOME')+'/Desktop/select_region.png',bbox_inches='tight')
-                   plt.show()
+    elif system == 'sdss':
 
-               rmin_box = float(raw_input('enter minimum rmag>> '))
-               rmax_box = float(raw_input('enter maximum rmag>> '))
-               data = data[(dist_center < n_half*rhalf_dwarf/60.) & 
-               (data[sysmag2] >= rmin_box) & (data[sysmag2] <= rmax_box)]
+        dmod0  = dsphs.loc[dsph_select,'dmod0'] 
+        ra_dwarf  = dsphs.loc[dsph_select,'ra']  
+        dec_dwarf  = dsphs.loc[dsph_select,'dec']  
+        rhalf_dwarf  = dsphs.loc[dsph_select,'r_h']  
+
+        ra = data['ra'] * 15.
+        dec = data['dec'] * 15.
+
+        #Create a mask to only select stars within the central 2 rhalf and 90% completeness
+        n_half = 1
+        dist_center = np.sqrt(((ra-ra_dwarf)*np.cos(dec_dwarf*np.pi/180.))**2 +
+          (dec-dec_dwarf)**2) 
+
+        rmin_box = float(raw_input('enter minimum rmag>> '))
+        rmax_box = float(raw_input('enter maximum rmag>> '))
+        data = data[(dist_center < n_half*rhalf_dwarf/60.) & 
+        (data[sysmag2] >= rmin_box) & (data[sysmag2] <= rmax_box)]
+
+    elif system == 'cfht':
+
+        dmod0  = dsphs.loc[dsph_select,'dmod0'] 
+        ra_dwarf  = dsphs.loc[dsph_select,'ra']  
+        dec_dwarf  = dsphs.loc[dsph_select,'dec']  
+        rhalf_dwarf  = dsphs.loc[dsph_select,'r_h']  
+
+        ra = data['ra'] * 15.
+        dec = data['dec'] * 15.
+
+        #Create a mask to only select stars within the central 2 rhalf and 90% completeness
+        n_half = 1
+        dist_center = np.sqrt(((ra-ra_dwarf)*np.cos(dec_dwarf*np.pi/180.))**2 +
+          (dec-dec_dwarf)**2) 
+
+        if 0:
+            mask = dist_center < n_half*rhalf_dwarf/60. # in deg
+            plt.subplot(1,3,1)
+            plt.scatter(data['ra'],data['dec'],color='k',marker='.',s=1)
+            plt.scatter(data['ra'][mask],data['dec'][mask],color='r',marker='o',s=2)
+            plt.xlabel(r'$\alpha$',fontdict={'size':12})
+            plt.ylabel(r'$\delta$',fontdict={'size':12})
+            plt.xlim(data['ra'][mask].min()-.03,data['ra'][mask].max()+.03)
+            plt.ylim(data['dec'][mask].min()-.03,data['dec'][mask].max()+.03)
+            plt.subplot(1,3,2)
+            plt.ylabel(r'$r_0$')
+            plt.xlabel(r'$(g-r)_0$')
+            plt.axis([-0.2,0.75,6.+dmod0,-2+dmod0])
+            plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
+            plt.scatter(data['color'],data[sysmag2],color='k',marker='.',s=1)
+            plt.scatter(data['color'][mask],data[sysmag2][mask],color='r',marker='o',s=2)
+            plt.subplot(1,3,3)
+            n_r , rhist = np.histogram(data[sysmag2][mask],bins=50,density=True)
+            n_r_sum = np.cumsum(n_r)
+            n_r_sum = n_r_sum / n_r_sum.max()
+            plt.bar(rhist[:-1],n_r_sum)
+            plt.ylabel(r'$r_0$')
+            plt.xlabel(r'$N_{cumul}$')
+            plt.axis([-2+dmod0,6+dmod0,0,1.1])
+            #plt.savefig(os.getenv('HOME')+'/Desktop/select_region.png',bbox_inches='tight')
+            plt.show()
+
+        rmin_box = float(raw_input('enter minimum rmag>> '))
+        rmax_box = float(raw_input('enter maximum rmag>> '))
+        data = data[(dist_center < n_half*rhalf_dwarf/60.) & 
+          (data[sysmag2] >= rmin_box) & (data[sysmag2] <= rmax_box)]
+
     else:
         pass
         

@@ -29,13 +29,17 @@ if sim == 1:
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
     nstars = 4500
-    mass_min = 0.20
-    mass_max = 0.80
+    mass_min = 0.05
+    mass_max = 0.77
 
     titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
+    #Given Nstars, calculate how many should be required so that AFTER cuts, one is left with ~ Nstars.
+    #MG: do not make cuts in magnitude due to Malmquist biases and other systematic biases, only do cuts
+    #on observations after making mock samples. 
+
     #Use Herc data to model error as a function of magnitude
-    phot = read_phot('Herc',system,sysmag1,sysmag2,cuts=True)
+    phot = read_phot('Herc',system,sysmag1,sysmag2)
     magsort1 = np.argsort(phot['F606W'])
     magsort2 = np.argsort(phot['F814W'])
     p1 = np.polyfit(phot['F606W'][magsort1],phot['F606Werr'][magsort1],4,cov=False)
@@ -51,8 +55,11 @@ if sim == 1:
 
     #Create simulated data. simulate_cmd module called from myanalysis.py
     #For test version, see test_simulate_cmd.py
+
+    #magerrarr1 = magerrarr1*0 + .05
+    #magerrarr2 = magerrarr2*0 + .05
     phot = simulate_cmd(nstars,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-    system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min,mass_max=mass_max)
+    system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_max=mass_max)
 
     phot_raw = np.copy(phot)
 
@@ -70,7 +77,7 @@ elif sim == 0:
     dmod0  = 20.63  #dmod to Hercules
     #nstars = 10000  #only for simulated data
     mass_min = 0.05
-    mass_max = 0.75  #mass max must be below MSTO - make plot to check for this?
+    mass_max = 0.77  #mass max must be below MSTO - make plot to check for this?
 
     dsph_select = str(sys.argv[1])
     titlestring = dsph_select+' CMD'
@@ -92,8 +99,9 @@ elif sim == 0:
     print '=============================='
 
     #Read in photometry database and extract relevant quantities
-    phot = read_phot('Herc',system,sysmag1,sysmag2,cuts=True)
-    phot_raw = read_phot('Herc',system,sysmag1,sysmag2,cuts=False)
+    phot     = read_phot('Herc',system,sysmag1,sysmag2)
+    phot_raw = np.copy(phot)
+    phot     = filter_phot(phot,system,sysmag1,sysmag2)
     #phot = read_phot(dsph_select,dataset=system,cuts=True)
     #phot_raw = read_phot(dsph_select,dataset=system,cuts=False)
 
@@ -169,7 +177,7 @@ isocol = f(x)
 #Loop over data points and isochrone points 
 
 #alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
-alpha_arr = np.array([1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6])
+alpha_arr = np.array([1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2])
 logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
 tic = timeit.default_timer()
@@ -214,22 +222,20 @@ nlogL_arr = -1.0*logL_arr + logL_arr.max() + 1
 #Post-analysis for lnL curve: find best fitting power-law alpha and its uncertainties 
 #from -lnL + 1/2. (chi^2+1)
 
-s = interpolate.InterpolatedUnivariateSpline(alpha_arr,nlogL_arr)
+s = interpolate.UnivariateSpline(alpha_arr,nlogL_arr,k=3)
 xtmparr = np.arange(alpha_arr.min(),alpha_arr.max(),0.01)
 ytmparr = s(xtmparr)
 
-
-print xtmparr
-print ytmparr
 #find value for minimum 
 hh = np.argmin(ytmparr)
-alpha_fit = xtmparr[hh] ; Lfit = ytmparr[hh]
-hh = np.argmin(abs(ytmparr[xtmparr < alpha_fit]-(Lfit+0.5)))
-alpha_minus = xtmparr[xtmparr < alpha_fit][hh]
-hh = np.argmin(abs(ytmparr[xtmparr > alpha_fit]-(Lfit+0.5)))
-alpha_plus = xtmparr[xtmparr > alpha_fit][hh]
-delta_plus = alpha_plus - alpha_fit
-delta_minus = alpha_fit - alpha_plus 
+if hh > 2 and hh <= len(ytmparr)-3:
+    alpha_fit = xtmparr[hh] ; Lfit = ytmparr[hh]
+    hh = np.argmin(abs(ytmparr[xtmparr < alpha_fit]-(Lfit+0.5)))
+    alpha_minus = xtmparr[xtmparr < alpha_fit][hh]
+    hh = np.argmin(abs(ytmparr[xtmparr > alpha_fit]-(Lfit+0.5)))
+    alpha_plus = xtmparr[xtmparr > alpha_fit][hh]
+    delta_plus = alpha_plus - alpha_fit
+    delta_minus = alpha_fit - alpha_plus 
 
 plt.subplot(1,2,1) 
 if system == 'acs': 
@@ -240,8 +246,8 @@ if system == 'wfpc2':
     plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
 if system == 'sdss': 
     xmin = -1.25; xmax = 0.75; ymax = 6.+dmod0; ymin = -2.+dmod0
-plt.plot(isocol0,isomag0,lw=1,ls='-')
-plt.plot(isocol,isomag,lw=3,ls='--')
+plt.plot(isocol0,isomag0,lw=1,ls='-',color='green')
+plt.plot(isocol,isomag,lw=5,ls='--',color='blue')
 plt.ylabel(mag_name)
 plt.xlabel(col_name)
 plt.axis([xmin,xmax,ymax,ymin])
@@ -251,7 +257,7 @@ plt.scatter(phot['color'],phot[sysmag2],color='r',marker='o',s=2)
 #plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
 plt.title(titlestring)  #loc=1, urh; loc=2: ul; 3: ll; 4: lr; 5: r
 
-if sim == 1:
+if hh > 2 and hh <= len(ytmparr)-3:
     plt.text(xmax-.90,ymin+0.5,r'$\alpha_{in}$='+'{0:5.2f}'.format(alpha_in)+'',fontsize=11)
 
 plt.text(xmax-.90,ymin+0.8,r''+'{0:5.2f}'.format(mass_min)+' $<$ M $<$ '+'{0:5.2f}'.format(mass_max)+'',fontsize=11)
@@ -273,13 +279,13 @@ xmin = alpha_arr.min()-.2; xmax = alpha_arr.max()+.2
 ymax = nlogL_arr.max()+.1*(nlogL_arr.max()-nlogL_arr.min()); ymin = nlogL_arr.min()-.1*(nlogL_arr.max()-nlogL_arr.min())
 plt.plot(alpha_arr,nlogL_arr,'bo',markersize=7)
 plt.plot(xtmparr,ytmparr,ls='--',lw=1.25,color='blue')
-plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
+if hh > 2 and hh <= len(ytmparr)-3: plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
 plt.axis([xmin,xmax,ymin,ymax])
 plt.title(r'Best-Fit Power-Law IMF')
 plt.xlabel(r'$\alpha$')
 plt.ylabel(r'$-$ln\,$L$ + $k$')
 #plt.savefig(os.getenv('HOME')+'/Desktop/alpha_lnL.png',bbox_inches='tight')
-plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-ymin),r'$\alpha\,='+'{0:5.2f}'.format(alpha_fit)+'^{'+
+if hh > 2 and hh <= len(ytmparr)-3: plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-ymin),r'$\alpha\,='+'{0:5.2f}'.format(alpha_fit)+'^{'+
     '{0:+5.2f}'.format(delta_plus)+'}_{'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
 plt.show()
 
