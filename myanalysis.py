@@ -202,13 +202,17 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
 #now specify a Salpeter LF, alpha is exponent in linear eqn, alpha = Gamma + 1
 
-def f_salpeter(mass_arr,mass_min,mass_max,alpha):
+def f_salpeter(mass_arr,mass_min,mass_max,alpha,**kwargs):
     #to end sets last element to 0 otherwise one element too few.
     dmass_arr = np.ediff1d(mass_arr,to_end=0.0)   
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
     dmass_arr = abs(dmass_arr)
     dN_arr = (mass_arr**(-1.*alpha)) * dmass_arr
-    dN_arr[(mass_arr < mass_min) & (mass_arr > mass_max)] = 0.0
+    dN_arr[mass_arr < mass_min] = 0.0
+    dN_arr[mass_arr > mass_max] = 0.0
+    if 'normalize' in kwargs.keys():
+        if kwargs['normalize'] == False:
+            return dN_arr
     #Find normalization - 12-aug-2012
     knorm = 1. / np.sum(dN_arr)
     dN_arr = knorm * dN_arr
@@ -218,14 +222,18 @@ def f_salpeter(mass_arr,mass_min,mass_max,alpha):
 #dN/dM = (1/ln10)*(1/M)*dN/dlogM, and this is calculated within the function. Finally, return
 #dM, as for f_salpeter .
 #Careful: denominator in first term has ln10 = np.log(10), but exponential is log10 M, so np.log10(m)
-def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,nstars):
+def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
     dmass_arr = np.ediff1d(mass_arr,to_end=0.0)  
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] 
     dmass_arr = abs(dmass_arr)
     dN_arr = ((1./(np.log(10.)*mass_arr)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
         np.exp(-1. * (np.log10(mass_arr)-np.log10(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
         dmass_arr)
-    dN_arr[(mass_arr < mass_min) & (mass_arr > mass_max)] = 0.0
+    dN_arr[mass_arr < mass_min] = 0.0
+    dN_arr[mass_arr > mass_max] = 0.0
+    if 'normalize' in kwargs.keys():
+        if kwargs['normalize'] == False:
+            return dN_arr
     #Find normalization - 12-aug-2012
     knorm = 1. / dN_arr.sum()
     dN_arr = knorm * dN_arr
@@ -250,3 +258,57 @@ def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
            sigma_gr**2*delta_r_arr**2))
     #print P*exp_arg
     return P*exp_arg
+
+def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax,**kwargs):
+    '''Given a number of desired stars N, estimate how many
+    should be asked for from the full LF so that approx N 
+    stars remain after magnitude cuts'''
+
+    #Read in isochorne to get magnitude at given mass
+    iso = read_iso_darth(age,feh,afe,system)
+    
+    #Estimate total number of stars between the observed mag bounds
+    print iso[sysmag2]+dmod0
+    imax = np.argmin(abs(iso[sysmag2] + dmod0 - magmax))
+    imin = np.argmin(abs(iso[sysmag2] + dmod0 - magmin))
+    #range of masses for observed CMD
+    mmin = iso['mass'][imax]
+    mmax = iso['mass'][imin]
+    #range of masses for entire CMD
+    mmin_global = 0.05
+    mmax_global = 0.80  
+    #print out masses
+    print "Mmin = ",mmin  
+    print "Mmax = ",mmax
+    print "Mmin0 = ",mmin_global
+    print "Mmax0 = ",mmax_global
+
+    xdum = np.arange(mmin_global,mmax_global,0.0001)
+    if kwargs['imftype'] == 'salpeter':
+        if 'alpha' not in kwargs.keys():
+            print "Error: alpha not specified for Salpeter function" 
+            raise SystemExit
+        alpha_ = kwargs['alpha']
+        f_all = np.sum(f_salpeter(xdum,mmin_global,mmax_global,alpha_,normalize=False))
+        f_cut = np.sum(f_salpeter(xdum,mmin,mmax,alpha_,normalize=False))
+
+    elif kwargs['imftype'] == 'chabrier':
+        if 'mc' not in kwargs.keys():
+            print "Error: M_c (kwarg=mc) not specified for Chabrier function" 
+            raise SystemExit
+        elif 'sigmac' not in kwargs.keys():
+            print "Error: sigma_c (kwarg=sigmac) not specified for Chabrier function" 
+            raise SystemExit
+        pass
+        mc_ = kwargs['mc']
+        sigmac_ = kwargs['sigmac']
+        f_all = np.sum(f_chabrier(xdum,mmin_global,mmax_global,mc_,sigmac_))
+        f_cut = np.sum(f_chabrier(xdum,mmin,mmax,mc_,sigmac_))
+
+    else:
+        raise SystemExit
+
+    print f_all, f_cut
+
+    return nrequired * (f_all / f_cut)
+    

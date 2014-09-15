@@ -10,19 +10,27 @@ from mywrangle import *
 
 #now specify a Salpeter LF, alpha is exponent in linear eqn, alpha = Gamma + 1
 
-def f_salpeter(mass_arr,mass_min,mass_max,alpha):
-    dmass_arr = np.ediff1d(mass_arr,to_end=0.0)  #to end sets last element to 0 otherwise
-       #one element too few.
+def f_salpeter(mass_arr,mass_min,mass_max,alpha,**kwargs):
+    #to end sets last element to 0 otherwise one element too few.
+    dmass_arr = np.ediff1d(mass_arr,to_end=0.0)   
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
     dmass_arr = abs(dmass_arr)
     dN_arr = (mass_arr**(-1.*alpha)) * dmass_arr
-    dN_arr[(mass_arr < mass_min) & (mass_arr > mass_max)] = 0.0
+    dN_arr[mass_arr < mass_min] = 0.0
+    dN_arr[mass_arr > mass_max] = 0.0
+    if 'normalize' in kwargs.keys():
+        if kwargs['normalize'] == False:
+            return dN_arr
+    #Find normalization - 12-aug-2012
+    knorm = 1. / np.sum(dN_arr)
+    dN_arr = knorm * dN_arr
     return dN_arr
 
 #specify a Chabrier LF, but given in dN/dM. The Chabrier IMF is given typically as dN/d(logM)
 #dN/dM = (1/ln10)*(1/M)*dN/dlogM, and this is calculated within the function. Finally, return
 #dM, as for f_salpeter .
 #Careful: denominator in first term has ln10 = np.log(10), but exponential is log10 M, so np.log10(m)
+
 def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit):
     dmass_arr = np.ediff1d(mass_arr,to_end=0.0)  
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] 
@@ -30,7 +38,14 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit):
     dN_arr = ((1./(np.log(10.)*mass_arr)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
         np.exp(-1. * (np.log10(mass_arr)-np.log10(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
         dmass_arr)
-    dN_arr[(mass_arr < mass_min) & (mass_arr > mass_max)] = 0.0
+    dN_arr[mass_arr < mass_min] = 0.0
+    dN_arr[mass_arr > mass_max] = 0.0
+    if 'normalize' in kwargs.keys():
+        if kwargs['normalize'] == False:
+            return dN_arr
+    #Find normalization - 12-aug-2012
+    knorm = 1. / dN_arr.sum()
+    dN_arr = knorm * dN_arr
     return dN_arr
     
 def likelihood_matrix(cmd_point,iso_point,error_cov):
