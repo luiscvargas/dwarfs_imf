@@ -19,6 +19,7 @@ sim = 1
 if sim == 1:
 
     alpha_in = 2.35
+    start_seed = 123
 
     system = 'acs'
     sysmag1   = 'F606W'
@@ -28,9 +29,8 @@ if sim == 1:
     isofeh = -2.5
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
-    nstars = 4500
-    mass_min = 0.05
-    mass_max = 0.77
+    #nstars = 4500
+    nstars = 2000
 
     titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
@@ -44,7 +44,7 @@ if sim == 1:
     magsort2 = np.argsort(phot['F814W'])
     p1 = np.polyfit(phot['F606W'][magsort1],phot['F606Werr'][magsort1],4,cov=False)
     p2 = np.polyfit(phot['F814W'][magsort2],phot['F814Werr'][magsort2],4,cov=False)
-    magarr1 = np.arange(22.,30.,.01)  
+    magarr1 = np.arange(22.,32.,.01)  
     magarr2 = np.copy(magarr1)
     magerrarr1 = np.polyval(p1,magarr1)
     magerrarr1[magarr1 <= phot['F606W'].min()] = phot['F606Werr'].min()
@@ -56,15 +56,28 @@ if sim == 1:
     #Create simulated data. simulate_cmd module called from myanalysis.py
     #For test version, see test_simulate_cmd.py
 
-    #magerrarr1 = magerrarr1*0 + .05
-    #magerrarr2 = magerrarr2*0 + .05
+    magerrarr1 = magerrarr1*0 + .02
+    magerrarr2 = magerrarr2*0 + .02
+
     #mass_min cut not included: want all stars in cmd to avoid malmquist bias
     #upper mass cut more complex: imf is zero-age imf, whereas LF changes with
     #age.
-    phot = simulate_cmd(nstars,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-    system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_max=mass_max)
+
+    #Define some mass cut way belwo observational cut but not as low as limit of isochrone in order to make
+    #MC mock data code run faster (less samples are thrown out)
+    mass_min_global = 0.20
+
+    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,30.5,  #28.5
+       imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
+
+    nwanted = nstars 
+
+    phot = simulate_cmd(nall,nwanted,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+    system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+     #cuts in color not in estimate_required_n
 
     phot_raw = np.copy(phot)
+
     phot     = filter_phot(phot,system,sysmag1,sysmag2)
 
 elif sim == 0:
@@ -80,8 +93,11 @@ elif sim == 0:
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
     #nstars = 10000  #only for simulated data
-    mass_min = 0.05
-    mass_max = 0.77  #mass max must be below MSTO - make plot to check for this?
+    mass_min_global = 0.05
+    mass_max_global = 0.77  #mass max must be below MSTO - make plot to check for this?
+
+    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,28.0,  #28.5
+       imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
 
     dsph_select = str(sys.argv[1])
     titlestring = dsph_select+' CMD'
@@ -111,21 +127,21 @@ elif sim == 0:
 
 #Find representative errors for bins in magnitude
 magmin = 18. ; dmag = 0.5
-magbin = np.arange(18.,30.,.5) + .5  #excludes endpoint 25.
+magbin = np.arange(18.,31.,.5) + .5  #excludes endpoint 25.
 magerrmean = []
 
 for mag in magbin:
     magerrmean.append(phot[(phot[sysmag2] > mag - 0.5) & (phot[sysmag2] < mag + 0.5)][sysmag2+'err'].mean())
  
 magerrmean = np.array(magerrmean)
-#Print a few elements of the matrix
+#Print a few elements of the matrix: this was useful in debugging colorerr definition in mid sep 2014, do not delete
 for i in range(0,2):
     print  'MAG_ERR = {0:3f}'.format(phot[i][sysmag2+'err'])
     print  'COVAR = {0:3f}'.format(phot[i]['covar'] - phot[i][sysmag2+'err']**2)
     print  'COLOR_ERR = {0:3f}'.format(phot[i]['colorerr'])
 
 #Now import isochrone of given age, [Fe/H], [a/Fe], making desired mass cuts for fitting
-iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min,mass_max=mass_max)
+iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min_fit,mass_max=mass_max_fit)
 iso0 = read_iso_darth(isoage,isofeh,isoafe,system)
 
 isomass = iso['mass'] 
@@ -182,6 +198,7 @@ isocol = f(x)
 
 #alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
 alpha_arr = np.array([0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
+alpha_arr = np.array([-4.,-3.0,-2.0,-1.,-.7,-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
 logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
 tic = timeit.default_timer()
@@ -190,11 +207,13 @@ for ialpha,alpha in enumerate(alpha_arr):
     logL_i = 0.0
     #for i in range(1000):
     for i in range(len(phot['color'])):
-        delta_color = phot['color'][i] - isocol
-        delta_mag   = phot[sysmag2][i]  - isomag
+        delta_color = phot['color'][i] - isocol0  #note isocol0 goes with isomass0 below, not making cuts 
+        delta_mag   = phot[sysmag2][i]  - isomag0  #in isochrones, cuts are only done in data.
         error_cov = np.array([[phot['colorerr'][i],0.0],[0.0,phot[sysmag2+'err'][i]]])
-        a  = likelihood(phot['colorerr'][i],phot[sysmag2+'err'][i],phot['covar'][i],delta_color,delta_mag)
-        dN = f_salpeter(isomass,mass_min,mass_max,alpha)
+        #a  = likelihood(phot[sysmag2+'err'][i],phot['colorerr'][i],phot['covar'][i],delta_color,delta_mag)
+        a  = likelihood_nocovar(phot[sysmag2+'err'][i],phot['colorerr'][i],delta_color,delta_mag)
+        dN = f_salpeter(isomass0,0.05,0.80,alpha)
+        #dN = f_salpeter(isomass0,mass_min,mass_max,alpha)
         L_tmp = np.sum(a*dN)
         if L_tmp < 1e-200: logL_tmp = -5000.
         if L_tmp >= 1e-200: logL_tmp = np.log(L_tmp)
@@ -203,18 +222,19 @@ for ialpha,alpha in enumerate(alpha_arr):
         if 0:
             plt.subplot(2,2,1)
             plt.ylabel(r'$\rho$exp(...)')
-            plt.plot(isomass,a*dN,'bo',ms=3,ls='-')
+            plt.plot(isomass0,a*dN,'bo',ms=3,ls='-')
             plt.subplot(2,2,2)
             plt.ylabel(r'$\rho$')
-            plt.plot(isomass,dN,'bo',ms=3,ls='-')
+            plt.plot(isomass0,dN,'bo',ms=3,ls='-')
             plt.subplot(2,2,3)
             plt.ylabel(r'exp(...)')
-            plt.plot(isomass,a,'bo',ms=3,ls='-')
+            plt.plot(isomass0,a,'bo',ms=3,ls='-')
             plt.subplot(2,2,4)
             plt.ylabel(r'$'+sysmag2+'$')
             plt.xlabel(r'$'+sysmag1+' - '+sysmag2+'$')
             plt.axis([-1.0,1.0,11.+dmod0,0+dmod0])
-            plt.scatter(phot_raw['color'],phot_raw[sysmag2],marker='.',s=1)
+            plt.scatter(phot_raw['color'],phot_raw[sysmag2],marker='.',s=1,color='gray')
+            plt.scatter(phot['color'],phot[sysmag2],marker='.',s=1,color='k')
             plt.scatter(phot['color'][i],phot[sysmag2][i],marker='o',color='red',s=8)
             plt.show()
     logL_arr[ialpha] = logL_i   
@@ -240,13 +260,14 @@ if hh > 2 and hh <= len(ytmparr)-3:
     alpha_plus = xtmparr[xtmparr > alpha_fit][hh]
     delta_plus = alpha_plus - alpha_fit
     delta_minus = alpha_fit - alpha_plus 
+hh = np.argmin(ytmparr)
 
-plt.subplot(1,2,1) 
+plt.subplot(2,2,1) 
 if system == 'acs': 
-    xmin = -1.25; xmax = 0.75; ymax = 10+dmod0; ymin = dmod0
+    xmin = -1.25; xmax = 0.75; ymax = 12+dmod0; ymin = dmod0
     plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
 if system == 'wfpc2': 
-    xmin = -1.25; xmax = 0.75; ymax = 10+dmod0; ymin = dmod0
+    xmin = -1.25; xmax = 0.75; ymax = 12+dmod0; ymin = dmod0
     plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
 if system == 'sdss': 
     xmin = -1.25; xmax = 0.75; ymax = 6.+dmod0; ymin = -2.+dmod0
@@ -261,13 +282,14 @@ plt.scatter(phot['color'],phot[sysmag2],color='r',marker='o',s=2)
 #plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
 plt.title(titlestring)  #loc=1, urh; loc=2: ul; 3: ll; 4: lr; 5: r
 
+dy = ymax - ymin
 if hh > 2 and hh <= len(ytmparr)-3:
-    plt.text(xmax-.90,ymin+0.5,r'$\alpha_{in}$='+'{0:5.2f}'.format(alpha_in)+'',fontsize=11)
+    plt.text(xmax-.90,ymin+0.1*dy,r'$\alpha_{in}$='+'{0:5.2f}'.format(alpha_in)+'',fontsize=11)
 
-plt.text(xmax-.90,ymin+0.8,r''+'{0:5.2f}'.format(mass_min)+' $<$ M $<$ '+'{0:5.2f}'.format(mass_max)+'',fontsize=11)
-plt.text(xmax-.90,ymin+1.1,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',fontsize=11)
-plt.text(xmax-.90,ymin+1.4,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
-plt.text(xmax-.90,ymin+1.7,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
+#plt.text(xmax-.90,ymin+0.8,r''+'{0:5.2f}'.format(mass_min)+' $<$ M $<$ '+'{0:5.2f}'.format(mass_max)+'',fontsize=11)
+plt.text(xmax-.90,ymin+0.18*dy,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',fontsize=11)
+plt.text(xmax-.90,ymin+0.26*dy,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
+plt.text(xmax-.90,ymin+0.34*dy,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
 
     #isoage = 14.0
     #isofeh = -2.5
@@ -277,21 +299,36 @@ plt.text(xmax-.90,ymin+1.7,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',
     #mass_min = 0.20
     #mass_max = 0.80
 
+plt.subplot(2,2,2)
+ymin = phot[sysmag2].min()-.3
+ymax = phot[sysmag2].max()+.3
+nbins = int((ymax-ymin)/0.3)
+n_r , rhist = np.histogram(phot[sysmag2],bins=nbins)
+n_r = n_r / float(n_r.max())
+#plt.hist(phot[sysmag2],bins=20)
+plt.plot(rhist[:-1],n_r,markersize=3,color='k',marker='o')
+plt.xlabel(r'$'+sysmag2+'$')
+plt.ylabel(r'$dN$')
+plt.axis([ymin,ymax,0,1.1])
 
-plt.subplot(1,2,2) 
+plt.subplot(2,2,3) 
 xmin = alpha_arr.min()-.2; xmax = alpha_arr.max()+.2 
 ymax = nlogL_arr.max()+.1*(nlogL_arr.max()-nlogL_arr.min()); ymin = nlogL_arr.min()-.1*(nlogL_arr.max()-nlogL_arr.min())
 plt.plot(alpha_arr,nlogL_arr,'bo',markersize=7)
 plt.plot(xtmparr,ytmparr,ls='--',lw=1.25,color='blue')
 if hh > 2 and hh <= len(ytmparr)-3: plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
 plt.axis([xmin,xmax,ymin,ymax])
-plt.title(r'Best-Fit Power-Law IMF')
+#plt.title(r'Best-Fit Power-Law IMF')
 plt.xlabel(r'$\alpha$')
 plt.ylabel(r'$-$ln\,$L$ + $k$')
 #plt.savefig(os.getenv('HOME')+'/Desktop/alpha_lnL.png',bbox_inches='tight')
 if hh > 2 and hh <= len(ytmparr)-3: plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-ymin),r'$\alpha\,='+'{0:5.2f}'.format(alpha_fit)+'^{'+
     '{0:+5.2f}'.format(delta_plus)+'}_{'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
+
+
+
 plt.show()
+
 
 """
 markers:  .  ,  o  v  ^  >  <  1  2  3  4  8  s  p  *  h  H  +  x  D  d  |   _  

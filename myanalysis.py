@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 from mywrangle import *
 
-def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
+def simulate_cmd(nstars_all,nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
    testing = 0 #testing = 1 in stand alone test_simulate_cmd.py code
 
@@ -42,7 +42,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    if mass_max <= mass_min: raise SystemExit
    if mass_min <= iso['mass'].min(): mass_min = iso['mass'].min()
-   if mass_max >= iso['mass'].max(): mass_min = iso['mass'].max()
+   if mass_max >= iso['mass'].max(): mass_max = iso['mass'].max()
 
    if kwargs['imftype'] == 'salpeter':
        if 'alpha' not in kwargs.keys():
@@ -92,7 +92,10 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    #First generate very large array in x and y, so that hopefully there will be at least nstars
    #that fall under dN/dM - M relation.
-   np.random.seed(seed=12345)
+   if 'start_seed' in kwargs.keys():
+       np.random.seed(seed=kwargs['start_seed'])
+   else:
+       np.random.seed(seed=12345)
 
    #Define limits of masses as lowest isochrone mass and highest isochrone mass *within* the mass cuts
    #specified as input args. If I use instead those input args directly, some points will be slightly
@@ -101,8 +104,9 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    #xrantmparr = np.random.random_sample(nstars*200) * (iso['mass'].max() - iso['mass'].min()) + iso['mass'].min()
    #yrantmparr = np.random.random_sample(nstars*200) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
-   xrantmparr = np.random.random_sample(nstars*20) * (mass_max - mass_min) + mass_min   
-   yrantmparr = np.random.random_sample(nstars*20) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
+   xrantmparr = np.random.random_sample(nstars_all*10) * (mass_max - mass_min) + mass_min   
+   yrantmparr = np.random.random_sample(nstars_all*10) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
+   print nstars,nstars_all
 
    xranarr = np.arange(nstars)*0.0
    yranarr = np.arange(nstars)*0.0
@@ -110,6 +114,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    #Now find the pairs (x,y) of simulated data that fall under envelope of dN/dM - M relation.
    count = 0
    for i,xrantmp in enumerate(xrantmparr):
+       print count
        if count == nstars: break
        idx = np.abs(xdum - xrantmp).argmin()
        #if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
@@ -203,7 +208,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    simdata['clip'] = 0  #assume cov(g,r) = 0.0 for now 
    simdata['covar'] = 0.0  #assume cov(g,r) = 0.0 for now 
    simdata['color'] = simdata[sysmag1] - simdata[sysmag2]
-   simdata['colorerr'] = np.sqrt(simdata[sysmag1]**2 + simdata[sysmag2]**2 - 2.*simdata['covar']) 
+   simdata['colorerr'] = np.sqrt(simdata[sysmag1+'err']**2 + simdata[sysmag2+'err']**2 - 2.*simdata['covar']) 
 
    return simdata
 
@@ -266,9 +271,18 @@ def likelihood(sigma_r,sigma_gr,cov_gr_r,delta_gr_arr,delta_r_arr):
     #print P*exp_arg
     return P*exp_arg
 
+def likelihood_nocovar(sigma_r,sigma_gr,delta_gr_arr,delta_r_arr):
+    #arrays must be ndarr, not python lists
+    P = 1.0/(2.0*np.pi*sigma_r*sigma_gr)
+    exp_arg = np.exp(-0.5*(delta_gr_arr**2/sigma_gr**2)-
+              0.5*(delta_r_arr**2/sigma_r**2)) 
+    #print P*exp_arg
+    return P*exp_arg
+
 def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax,**kwargs):
     '''Given a number of desired stars N, estimate how many
-    should be asked for from the full LF so that approx N 
+    should be asked for from the full LF (or from mmin_global to mmax_global if those
+    kwargs are passed as inputs) so that approx N 
     stars remain after magnitude cuts. The kwarfs are imftype and alpha, or
     imftype, mc, and sigmac'''
 
@@ -276,29 +290,52 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
     iso = read_iso_darth(age,feh,afe,system)
     
     #Estimate total number of stars between the observed mag bounds
-    print iso[sysmag2]+dmod0
     imax = np.argmin(abs(iso[sysmag2] + dmod0 - magmax))
     imin = np.argmin(abs(iso[sysmag2] + dmod0 - magmin))
     #range of masses for observed CMD
-    mmin = iso['mass'][imax]
-    mmax = iso['mass'][imin]
+    mass_min_fit = iso['mass'][imax]
+    mass_max_fit = iso['mass'][imin]
     #range of masses for entire CMD
-    mmin_global = 0.05
-    mmax_global = 0.80  
-    #print out masses
-    print "Mmin = ",mmin  
-    print "Mmax = ",mmax
-    print "Mmin0 = ",mmin_global
-    print "Mmax0 = ",mmax_global
+    if 'mass_min_global' in kwargs.keys(): 
+        mass_min_global = kwargs['mass_min_global']
+    else:
+        mass_min_global = iso['mass'].min()
+    if 'mass_max_global' in kwargs.keys(): 
+        mass_max_global = kwargs['mass_max_global']
+    else:
+        mass_max_global = iso['mass'].max()  
 
-    xdum = np.arange(mmin_global,mmax_global,0.0001)
+    #check that bounds for mmin/mmax_global are larger than for mmin & mmax calculated from
+    #the isochrone
+    if mass_min_global > mass_min_fit: 
+        print "Min Mass (LF) > Min Mass (Mag cut)" 
+        raise SystemExit
+    if mass_max_global < mass_max_fit: 
+        print "Max Mass (LF) > Max Mass (Mag cut)" 
+        raise SystemExit
+
+    #and check that they are between the range of isochrone masses present
+    if mass_min_global < iso['mass'].min(): 
+        print "Min Mass (LF) below isochrone limit" 
+        raise SystemExit
+    if mass_max_global > iso['mass'].max(): 
+        print "Max Mass (LF) above isochrone limit"
+        raise SystemExit
+
+    #print out masses
+    print "Mmin = ",mass_min_fit
+    print "Mmax = ",mass_max_fit
+    print "Mmin0 = ",mass_min_global
+    print "Mmax0 = ",mass_max_global
+
+    xdum = np.arange(mass_min_global,mass_max_global,0.0001)
     if kwargs['imftype'] == 'salpeter':
         if 'alpha' not in kwargs.keys():
             print "Error: alpha not specified for Salpeter function" 
             raise SystemExit
         alpha_ = kwargs['alpha']
-        f_all = np.sum(f_salpeter(xdum,mmin_global,mmax_global,alpha_,normalize=False))
-        f_cut = np.sum(f_salpeter(xdum,mmin,mmax,alpha_,normalize=False))
+        f_all = np.sum(f_salpeter(xdum,mass_min_global,mass_max_global,alpha_,normalize=False))
+        f_cut = np.sum(f_salpeter(xdum,mass_min_fit,mass_max_fit,alpha_,normalize=False))
 
     elif kwargs['imftype'] == 'chabrier':
         if 'mc' not in kwargs.keys():
@@ -310,13 +347,13 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
         pass
         mc_ = kwargs['mc']
         sigmac_ = kwargs['sigmac']
-        f_all = np.sum(f_chabrier(xdum,mmin_global,mmax_global,mc_,sigmac_))
-        f_cut = np.sum(f_chabrier(xdum,mmin,mmax,mc_,sigmac_))
+        f_all = np.sum(f_chabrier(xdum,mass_min_global,mass_max_global,mc_,sigmac_))
+        f_cut = np.sum(f_chabrier(xdum,mass_min_fit,mass_max_fit,mc_,sigmac_))
 
     else:
         raise SystemExit
 
     print 'F_all, F_cut  =  ',f_all, f_cut
 
-    return int(nrequired * (f_all / f_cut))
+    return int(nrequired * (f_all / f_cut)), mass_min_fit, mass_max_fit
     

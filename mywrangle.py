@@ -73,14 +73,15 @@ def read_phot(photfile,system,sysmag1,sysmag2):
     #Assign values to the additional columns, AFTER extinction corrections
     data['covar'] = 0.0  #assume cov(g,r) = 0.0 for now 
     data['color'] = data[sysmag1] - data[sysmag2]
-    data['colorerr'] = np.sqrt(data[sysmag1]**2 + data[sysmag2]**2 - 2.*data['covar'])   
+    data['colorerr'] = np.sqrt(data[sysmag1+'err']**2 + data[sysmag2+'err']**2 - 2.*data['covar'])   
 
     return data
 
 def filter_phot(data,system,sysmag1,sysmag2):
 
     if system == 'acs':
-        x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
+        x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=30.5   #y2=28.5
+        #y2=29.2
         data = data[(data['color'] >= x1) & (data['color'] <= x2) & 
         (data['F814W'] <= y2) & (data['F814W'] >= y1) & (data['clip'] == 0)]
         if sysmag2 != 'F814W' or sysmag1 != 'F606W':
@@ -168,7 +169,7 @@ def filter_phot(data,system,sysmag1,sysmag2):
 
     else:
         pass
-        
+
     return data
 
 def read_iso_darth(age,feh,afe,system,**kwargs):
