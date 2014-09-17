@@ -18,8 +18,8 @@ sim = 1
 
 if sim == 1:
 
-    alpha_in = 2.35
-    start_seed = 123
+    alpha_in = 2.85
+    start_seed = 12345
 
     system = 'acs'
     sysmag1   = 'F606W'
@@ -30,7 +30,7 @@ if sim == 1:
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
     #nstars = 4500
-    nstars = 2000
+    nstars = 15000
 
     titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
@@ -56,8 +56,8 @@ if sim == 1:
     #Create simulated data. simulate_cmd module called from myanalysis.py
     #For test version, see test_simulate_cmd.py
 
-    magerrarr1 = magerrarr1*0 + .02
-    magerrarr2 = magerrarr2*0 + .02
+    magerrarr1 = magerrarr1*0 + .01
+    magerrarr2 = magerrarr2*0 + .01
 
     #mass_min cut not included: want all stars in cmd to avoid malmquist bias
     #upper mass cut more complex: imf is zero-age imf, whereas LF changes with
@@ -198,7 +198,7 @@ isocol = f(x)
 
 #alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
 alpha_arr = np.array([0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
-alpha_arr = np.array([-4.,-3.0,-2.0,-1.,-.7,-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
+alpha_arr = np.array([-2.0,-1.,-.7,-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
 logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
 tic = timeit.default_timer()
@@ -212,13 +212,15 @@ for ialpha,alpha in enumerate(alpha_arr):
         error_cov = np.array([[phot['colorerr'][i],0.0],[0.0,phot[sysmag2+'err'][i]]])
         #a  = likelihood(phot[sysmag2+'err'][i],phot['colorerr'][i],phot['covar'][i],delta_color,delta_mag)
         a  = likelihood_nocovar(phot[sysmag2+'err'][i],phot['colorerr'][i],delta_color,delta_mag)
-        dN = f_salpeter(isomass0,0.05,0.80,alpha)
+        dN = f_salpeter(isomass0,mass_min_fit,mass_max_fit,alpha)
+        #print len(a), len(dN), np.sum(a*dN)
         #dN = f_salpeter(isomass0,mass_min,mass_max,alpha)
         L_tmp = np.sum(a*dN)
         if L_tmp < 1e-200: logL_tmp = -5000.
         if L_tmp >= 1e-200: logL_tmp = np.log(L_tmp)
         logL_i += logL_tmp
-        print i,logL_i
+        if i % 100 == 0:
+            print 'alpha = ',alpha,'i = ',i
         if 0:
             plt.subplot(2,2,1)
             plt.ylabel(r'$\rho$exp(...)')
