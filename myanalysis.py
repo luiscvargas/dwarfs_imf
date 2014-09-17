@@ -6,7 +6,7 @@ from mywrangle import *
 
 def simulate_cmd(nstars_all,nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
-   testing = 0 #testing = 1 in stand alone test_simulate_cmd.py code
+   testing = 1 #testing = 1 in stand alone test_simulate_cmd.py code
 
    if 'imftype' not in kwargs.keys(): raise SystemExit
 
@@ -220,13 +220,15 @@ def f_salpeter(mass_arr,mass_min,mass_max,alpha,**kwargs):
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
     dmass_arr = abs(dmass_arr)
     dN_arr = (mass_arr**(-1.*alpha)) * dmass_arr
-    dN_arr[mass_arr < mass_min] = 0.0
-    dN_arr[mass_arr > mass_max] = 0.0
+    #dN_arr[mass_arr < mass_min] = 0.0
+    #dN_arr[mass_arr > mass_max] = 0.0
+    dN_arr[mass_arr < 0.10] = 0.0
+    dN_arr[mass_arr > 100.] = 0.0
     if 'normalize' in kwargs.keys():
         if kwargs['normalize'] == False:
             return dN_arr
     #Find normalization - 12-aug-2012
-    knorm = 1. / np.sum(dN_arr)
+    knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
     dN_arr = knorm * dN_arr
     return dN_arr
 
@@ -251,7 +253,7 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
     dN_arr = knorm * dN_arr
     return dN_arr
     
-def likelihood_matrix(cmd_point,iso_point,error_cov):
+def likelihood_matrix(cmd_point,iso_point,error_cov,c_arr):
     """Perform calculations as ndarrays and not as matrices;  have
     checked that the behavior and cpu usage is the same"""
     diff = cmd_point - iso_point
