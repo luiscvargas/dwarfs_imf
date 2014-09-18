@@ -3,6 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
+from scipy import interpolate
 import pandas as pd
 import pickle
 import numpy.lib.recfunctions as nlr
@@ -191,13 +192,54 @@ def read_iso_darth(age,feh,afe,system,**kwargs):
     else:
         mass_max = 100.0
 
+    if mass_min < isodata['mass'].min(): mass_min = isodata['mass'].min()
+    if mass_max > isodata['mass'].max(): mass_max = isodata['mass'].max()
+
     isodata = isodata[(isodata['mass'] >= mass_min) & (isodata['mass'] <= mass_max)]
 
     #Future: possibly interpolate isochrone if it does not satisfy the condition
     #of being finely graded in mass or magnitude - need dM intervals to be small
     #relative to the range of mass considered otherwise dN_*(dM) is not accurate.
 
-    return isodata
+    if 'interpolate' in kwargs.keys():
+        if kwargs['interpolate'] == False:
+            return isodata  #skip interpolation and return array as is
+        else:
+            pass
+    else:
+        pass
+
+    isodatanew = isodata[0]  #create a np struct array of same type as original
+
+    colnames = isodatanew.dtype.names
+
+    isort = np.argsort(isodata['mass'])
+    xarr = np.arange(mass_min,mass_max,0.001)
+
+    isodatanew = np.repeat(isodatanew,len(xarr)) #np.repeat or np.tile work equally well here for a 
+               #"1-element" array (one element = one row with multiple named columns
+
+    isodatanew[:]['mass'] = xarr
+    isodatanew[:]['idx'] = np.arange(len(xarr))
+    isodatanew[:]['feh'] = isodata[0]['feh']
+    isodatanew[:]['afe'] = isodata[0]['afe']
+    isodatanew[:]['age'] = isodata[0]['afe']
+
+    for icol,colname in enumerate(colnames):
+
+        if (colname != 'idx' and colname != 'feh' and colname != 'afe' and colname != 'age' and
+           colname != 'mass'):
+            
+            f = interpolate.splrep(isodata['mass'][isort],isodata[colname][isort])
+            yarr = interpolate.splev(xarr,f)
+
+            #plt.plot(xarr,yarr,lw=4,color='blue')
+            #plt.plot(isodata['mass'],isodata[colname],lw=1,color='red')
+            #plt.show()
+
+            isodatanew[:][colname] = yarr
+   
+    return isodatanew
 
 def read_iso_darth_txt(age,feh,afe,system,**kwargs):
     
