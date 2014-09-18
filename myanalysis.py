@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 from mywrangle import *
 
-def simulate_cmd(nstars_all,nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
+def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
    testing = 1 #testing = 1 in stand alone test_simulate_cmd.py code
 
@@ -78,7 +78,7 @@ def simulate_cmd(nstars_all,nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmag
    if testing == 1:
        plt.subplot(1,2,1)
        plt.plot(xdum,ydum,color='b',ls='-')
-       plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
+       plt.axis([mass_min,mass_max,0.0,ydum.max()])
        plt.xlabel(r"$M$") ; plt.ylabel(r"$dN/dM$")
        plt.subplot(1,2,2)
        plt.loglog(xdum,ydum,color='b',ls='-',basex=10,basey=10)
@@ -104,9 +104,9 @@ def simulate_cmd(nstars_all,nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmag
 
    #xrantmparr = np.random.random_sample(nstars*200) * (iso['mass'].max() - iso['mass'].min()) + iso['mass'].min()
    #yrantmparr = np.random.random_sample(nstars*200) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
-   xrantmparr = np.random.random_sample(nstars_all*10) * (mass_max - mass_min) + mass_min   
-   yrantmparr = np.random.random_sample(nstars_all*10) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
-   print nstars,nstars_all
+   xrantmparr = np.random.random_sample(nstars*15) * (mass_max - mass_min) + mass_min   
+   yrantmparr = np.random.random_sample(nstars*15) * 1.02*ydum.max() 
+   #yrantmparr = np.random.random_sample(nstars*15) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
 
    xranarr = np.arange(nstars)*0.0
    yranarr = np.arange(nstars)*0.0
@@ -114,7 +114,7 @@ def simulate_cmd(nstars_all,nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmag
    #Now find the pairs (x,y) of simulated data that fall under envelope of dN/dM - M relation.
    count = 0
    for i,xrantmp in enumerate(xrantmparr):
-       print count
+       #print count
        if count == nstars: break
        idx = np.abs(xdum - xrantmp).argmin()
        #if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
@@ -134,7 +134,7 @@ def simulate_cmd(nstars_all,nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmag
        plt.scatter(xrantmparr,yrantmparr,s=1,c='k',marker='.')
        plt.scatter(xranarr,yranarr,s=6,c='r',marker='o')
        plt.plot(xdum,ydum,color='b',ls='-')
-       plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
+       plt.axis([mass_min,mass_max,0.0,ydum.max()])
        plt.xlabel(r"$M$") ; plt.ylabel(r"$dN/dM$")
        plt.show()
 
@@ -226,6 +226,9 @@ def f_salpeter(mass_arr,mass_min,mass_max,alpha,**kwargs):
     dN_arr[mass_arr > 100.] = 0.0
     if 'normalize' in kwargs.keys():
         if kwargs['normalize'] == False:
+            #called by estimate_n_required
+            #dN_arr[mass_arr < mass_min] = 0.0
+            #dN_arr[mass_arr > mass_max] = 0.0
             return dN_arr
     #Find normalization - 12-aug-2012
     knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
@@ -243,8 +246,8 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
     dN_arr = ((1./(np.log(10.)*mass_arr)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
         np.exp(-1. * (np.log10(mass_arr)-np.log10(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
         dmass_arr)
-    dN_arr[mass_arr < mass_min] = 0.0
-    dN_arr[mass_arr > mass_max] = 0.0
+    dN_arr[mass_arr < 0.10] = 0.0
+    dN_arr[mass_arr > 100.0] = 0.0
     if 'normalize' in kwargs.keys():
         if kwargs['normalize'] == False:
             return dN_arr
@@ -336,8 +339,10 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
             print "Error: alpha not specified for Salpeter function" 
             raise SystemExit
         alpha_ = kwargs['alpha']
-        f_all = np.sum(f_salpeter(xdum,mass_min_global,mass_max_global,alpha_,normalize=False))
-        f_cut = np.sum(f_salpeter(xdum,mass_min_fit,mass_max_fit,alpha_,normalize=False))
+        f_tmp = f_salpeter(xdum,mass_min_global,mass_max_global,alpha_,normalize=False)
+        #f_all = f_tmp[0]*(mass_max_global-mass_min_global)/(xdum[1] - xdum[0])
+        f_all = np.sum(f_tmp[(xdum >= mass_min_global) & (xdum <= mass_max_global)])
+        f_cut = np.sum(f_tmp[(xdum >= mass_min_fit) & (xdum <= mass_max_fit)])
 
     elif kwargs['imftype'] == 'chabrier':
         if 'mc' not in kwargs.keys():
@@ -349,13 +354,14 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
         pass
         mc_ = kwargs['mc']
         sigmac_ = kwargs['sigmac']
-        f_all = np.sum(f_chabrier(xdum,mass_min_global,mass_max_global,mc_,sigmac_))
-        f_cut = np.sum(f_chabrier(xdum,mass_min_fit,mass_max_fit,mc_,sigmac_))
+        f_tmp = f_chabrier(xdum,mass_min_global,mass_max_global,mc_,sigmac_,normalize=False)
+        f_all = np.sum(f_tmp[(xdum >= mass_min_global) & (xdum <= mass_max_global)])
+        f_cut = np.sum(f_tmp[(xdum >= mass_min_fit) & (xdum <= mass_max_fit)])
 
     else:
         raise SystemExit
 
-    print 'F_all, F_cut  =  ',f_all, f_cut
-
+    print 'N_all  =  ',int(nrequired * f_all / f_cut)
+   
     return int(nrequired * (f_all / f_cut)), mass_min_fit, mass_max_fit
     
