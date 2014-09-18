@@ -18,8 +18,15 @@ sim = 1
 
 if sim == 1:
 
+    #nstars_arr = [1000,2000,5000]
+    #seed_arr = 5*np.arange(10) + 1
+    #f_err_arr = [0.2,1.0,5.0]
+    #alpha_in_arr = [0.5,1.0,1.5,2.0,2.5,3.0]
+
+    #mag_max_arr = [28.5,29.5,30.5]   <----done manually
+
     alpha_in = 2.35
-    start_seed = 123456
+    start_seed = 12345
 
     system = 'acs'
     sysmag1   = 'F606W'
@@ -30,7 +37,7 @@ if sim == 1:
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
     #nstars = 4500
-    nstars = 5000
+    nstars = 2500
 
     titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
@@ -56,8 +63,8 @@ if sim == 1:
     #Create simulated data. simulate_cmd module called from myanalysis.py
     #For test version, see test_simulate_cmd.py
 
-    magerrarr1 = magerrarr1*0.1 #+ .01
-    magerrarr2 = magerrarr2*0.1 #+ .01
+    #magerrarr1 = magerrarr1*0.1 #+ .01
+    #magerrarr2 = magerrarr2*0.1 #+ .01
 
     #mass_min cut not included: want all stars in cmd to avoid malmquist bias
     #upper mass cut more complex: imf is zero-age imf, whereas LF changes with
@@ -65,9 +72,9 @@ if sim == 1:
 
     #Define some mass cut way belwo observational cut but not as low as limit of isochrone in order to make
     #MC mock data code run faster (less samples are thrown out)
-    mass_min_global = 0.20
+    mass_min_global = 0.25
 
-    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.8,29.5,  
+    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,28.5,  
         #y1=24.3, y2=28.5
        imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
 
@@ -196,8 +203,8 @@ isocol = f(x)
 #Loop over data points and isochrone points 
 
 #alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
-alpha_arr = np.array([0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
-alpha_arr = np.array([-2.0,-1.,-.7,-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
+alpha_arr = np.array([-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
+#alpha_arr = np.array([-2.0,-1.,-.7,-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
 logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
 tic = timeit.default_timer()
@@ -292,25 +299,17 @@ plt.text(xmax-.90,ymin+0.18*dy,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',
 plt.text(xmax-.90,ymin+0.26*dy,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
 plt.text(xmax-.90,ymin+0.34*dy,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
 
-    #isoage = 14.0
-    #isofeh = -2.5
-    #isoafe =  0.4
-    #dmod0  = 20.63  #dmod to Hercules
-    #nstars = 4500
-    #mass_min = 0.20
-    #mass_max = 0.80
-
 plt.subplot(2,2,2)
 ymin = phot[sysmag2].min()-.3
 ymax = phot[sysmag2].max()+.3
-nbins = int((ymax-ymin)/0.1)
+nbins = int((ymax-ymin)/0.2)
 n_r , rhist = np.histogram(phot[sysmag2],bins=nbins)
-n_r = n_r / float(n_r.max())
+#n_r = n_r / float(n_r.max())
 #plt.hist(phot[sysmag2],bins=20)
-plt.plot(rhist[:-1],n_r,markersize=3,color='k',marker='o')
+plt.bar(rhist[:-1],n_r,rhist[1]-rhist[0],edgecolor='k')
 plt.xlabel(r'$'+sysmag2+'$')
 plt.ylabel(r'$dN$')
-plt.axis([ymin,ymax,0,1.1])
+plt.axis([ymin,ymax,0,1.1*max(n_r)])
 
 plt.subplot(2,2,3) 
 xmin = alpha_arr.min()-.2; xmax = alpha_arr.max()+.2 
@@ -327,81 +326,7 @@ if hh > 2 and hh <= len(ytmparr)-3: plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-y
     '{0:+5.2f}'.format(delta_plus)+'}_{'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
 
 
-
 plt.show()
 
 
-"""
-markers:  .  ,  o  v  ^  >  <  1  2  3  4  8  s  p  *  h  H  +  x  D  d  |   _  
-colors:  (R,G,B)-tuple, OR #aaffhh <html>, OR b,g,r,c,m,y,k,w, OR html names, eg burlywood
-"""
 
-"""
-plt.subplot(1,2,1)
-plt.scatter(phot['ra'],phot['dec'],c='k',marker='.',s=1)
-plt.xlabel(r'$\alpha$',fontdict={'size':12})
-plt.ylabel(r'$\delta$',fontdict={'size':12})
-plt.xlim(phot['ra'].min()-.01,phot['ra'].max()+.01)
-plt.ylim(phot['dec'].min()-.01,phot['dec'].max()+.01)
-
-#plot CMD on native pixels vs interpolated to fixed mag bin (if interpolated enabled)
-plt.subplot(1,2,2)
-plt.ylabel(r'$r_0$')
-plt.xlabel(r'$(g-r)_0$')
-plt.axis([-0.2,0.75,6.+dmod0,-2+dmod0])
-plt.errorbar(0.0*magerrmean,rbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
-plt.scatter(phot['col'],phot['mag'],color='b',marker='.',s=1)
-plt.plot(isocol0,isomag0+dmod0,'r.',linestyle='-',lw=1.0)
-plt.show()
-"""
-
-
-
-"""
-
-plt.subplot(2,3,1)
-plt.scatter(phot['ra'],phot['dec'],c='k',marker='.',s=1)
-plt.xlabel(r'$\alpha$',fontdict={'size':12})
-plt.ylabel(r'$\delta$',fontdict={'size':12})
-plt.xlim(phot['ra'].min()-.01,phot['ra'].max()+.01)
-plt.ylim(phot['dec'].min()-.01,phot['dec'].max()+.01)
-
-plt.subplot(2,3,2)
-plt.scatter(phot['g']-phot['r'],phot['r'],c='k',marker='.',s=1)
-plt.xlabel(r'$g-r$',fontdict={'size':12})
-plt.ylabel(r'$r$',fontdict={'size':12})
-plt.xlim((phot['g']-phot['r']).min()-.05,(phot['g']-phot['r']).max()+.05)
-plt.ylim(phot['r'].max()+.05,phot['r'].min()-.05)
-
-plt.subplot(2,3,3)
-plt.scatter(phot['r'],phot['rerr'],c='k',marker='.',s=1)
-plt.xlabel(r'$r$',fontdict={'size':12})
-plt.ylabel(r'$\sigma_r$',fontdict={'size':12})
-plt.xlim(phot['r'].min()-.1,phot['r'].max()+.1)
-plt.ylim(0.0,min(phot['rerr'].max(),0.8))
-
-plt.subplot(2,3,4)
-plt.scatter(phot['r'],phot['chi'],c='k',marker='.',s=1)
-plt.xlabel(r'$r$',fontdict={'size':12})
-plt.ylabel(r'$\chi_{\nu}^{2}$',fontdict={'size':12})
-plt.xlim(phot['r'].min()-.1,phot['r'].max()+.1)
-plt.ylim(0,5)
-
-plt.subplot(2,3,5)
-plt.scatter(phot['r'],phot['sharp'],c='k',marker='.',s=1)
-plt.xlabel(r'$r$',fontdict={'size':12})
-plt.ylabel(r'$sharp$',fontdict={'size':12})
-plt.xlim(phot['r'].min()-.1,phot['r'].max()+.1)
-plt.ylim(-4,4)
-
-#plot CMD on native pixels vs interpolated to fixed mag bin (if interpolated enabled)
-plt.subplot(2,3,6)
-plt.ylabel(r'$r_0$')
-plt.xlabel(r'$(g-r)_0$')
-plt.axis([-0.2,0.75,6.+dmod,-2+dmod])
-plt.errorbar(0.0*rerrmean,rbin,xerr=rerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=3.0)
-plt.scatter(phot['gr0'],phot['r0'],color='b',marker='.',s=1)
-plt.plot(isocol0,isomag0+dmod,'r.',linestyle='-',lw=1.0)
-plt.show()
-
-"""

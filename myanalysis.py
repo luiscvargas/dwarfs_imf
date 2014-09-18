@@ -6,7 +6,7 @@ from mywrangle import *
 
 def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
-   testing = 1 #testing = 1 in stand alone test_simulate_cmd.py code
+   testing = 0 #testing = 1 in stand alone test_simulate_cmd.py code
 
    if 'imftype' not in kwargs.keys(): raise SystemExit
 
