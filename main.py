@@ -18,8 +18,8 @@ sim = 1
 
 if sim == 1:
 
-    alpha_in = 2.85
-    start_seed = 12345
+    alpha_in = 2.35
+    start_seed = 123456
 
     system = 'acs'
     sysmag1   = 'F606W'
@@ -30,7 +30,7 @@ if sim == 1:
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
     #nstars = 4500
-    nstars = 15000
+    nstars = 5000
 
     titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
@@ -56,8 +56,8 @@ if sim == 1:
     #Create simulated data. simulate_cmd module called from myanalysis.py
     #For test version, see test_simulate_cmd.py
 
-    magerrarr1 = magerrarr1*0 + .01
-    magerrarr2 = magerrarr2*0 + .01
+    magerrarr1 = magerrarr1*0.1 #+ .01
+    magerrarr2 = magerrarr2*0.1 #+ .01
 
     #mass_min cut not included: want all stars in cmd to avoid malmquist bias
     #upper mass cut more complex: imf is zero-age imf, whereas LF changes with
@@ -67,12 +67,11 @@ if sim == 1:
     #MC mock data code run faster (less samples are thrown out)
     mass_min_global = 0.20
 
-    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,30.5,  #28.5
+    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.8,29.5,  
+        #y1=24.3, y2=28.5
        imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
 
-    nwanted = nstars 
-
-    phot = simulate_cmd(nall,nwanted,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+    phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
     system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
      #cuts in color not in estimate_required_n
 
@@ -304,7 +303,7 @@ plt.text(xmax-.90,ymin+0.34*dy,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+
 plt.subplot(2,2,2)
 ymin = phot[sysmag2].min()-.3
 ymax = phot[sysmag2].max()+.3
-nbins = int((ymax-ymin)/0.3)
+nbins = int((ymax-ymin)/0.1)
 n_r , rhist = np.histogram(phot[sysmag2],bins=nbins)
 n_r = n_r / float(n_r.max())
 #plt.hist(phot[sysmag2],bins=20)
