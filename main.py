@@ -9,6 +9,7 @@ import pandas as pd
 import timeit
 from mywrangle import *
 from myanalysis import *
+from my_em import *
 
 #Set env variables for latex-style plotting
 rc('text', usetex=True)
@@ -150,135 +151,35 @@ for i in range(0,2):
 iso = read_iso_darth(isoage,isofeh,isoafe,system,mass_min=mass_min_fit,mass_max=mass_max_fit)
 iso0 = read_iso_darth(isoage,isofeh,isoafe,system)
 
-isomass = iso['mass'] 
-isocol = iso[sysmag1] - iso[sysmag2] 
-isomag = iso[sysmag2] + dmod0
-
-isomass0 = iso0['mass'] 
-isocol0 = iso0[sysmag1] - iso0[sysmag2] 
-isomag0 = iso0[sysmag2] + dmod0
-
-if system == 'wfpc2':
-    col_name = r'F606W - F814W (WFPC2)' ; mag_name = r'F814W (WFPC2)'
-elif system == 'sdss':
-    col_name = r'$(g - r)_0$' ; mag_name = r'$r_0$'
-if system == 'acs':
-    col_name = r'F606W - F814W (ACS)' ; mag_name = r'F814W (ACS)'
-else:
-    pass
-
-#isocol = isocol0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
-#isomag = isomag0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
-#isomass = isomass0[(isomass0 >= mass_min) & (isomass0 <= mass_max)]
-
-if 0:
-   plt.plot(isocol0,isomag0,lw=1,ls='-')
-   plt.plot(isocol,isomag,lw=3,ls='--')
-   plt.ylabel(mag_name)
-   plt.xlabel(col_name)
-   if system == 'acs': plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
-   if system == 'wfpc2': plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
-   if system == 'sdss': plt.axis([-1.25,0.75,6.+dmod0,-2+dmod0])
-   if system == 'acs': plt.errorbar(-0.9+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
-   if system == 'wfpc2': plt.errorbar(-0.9+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
-   if system == 'sdss': plt.errorbar(-0.2+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
-   plt.scatter(phot_raw['color'],phot_raw[sysmag2],color='k',marker='.',s=1)
-   plt.scatter(phot['color'],phot[sysmag2],color='r',marker='o',s=2)
-   #plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
-   plt.title(titlestring)  #loc=1, urh; loc=2: ul; 3: ll; 4: lr; 5: r
-   plt.show()
-
-#raise SystemExit
-
-"""Here, I can play with interpolating isochrone to a regular grid in say rmag
-isomag   = x
-#f = interp1d(isomag0,isocol0,kind='cubic')
-isocol = f(x)
-"""
-
-#Shift isochrone using E(B-V) and some A_X to E(B-V) relation
-#For more flexibility shift this to a separate function later.
-#EBV  = 0.017  ; A_g  =    ; A_r  = 
+isomass = iso['mass']                ; isomass0 = iso0['mass']
+isocol = iso[sysmag1] - iso[sysmag2] ; isocol0 = iso0[sysmag1] - iso0[sysmag2]
+isomag = iso[sysmag2] + dmod0        ; isomag0 = iso0[sysmag2] + dmod0
 
 #Loop over data points and isochrone points 
 
 #alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
 alpha_arr = np.array([-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
-#alpha_arr = np.array([-2.0,-1.,-.7,-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
-logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
 
-tic = timeit.default_timer()
+nlogL_arr,result,xtmparr,ytmparr = maximize_em_salpeter(alpha_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit)
 
-for ialpha,alpha in enumerate(alpha_arr):
-    logL_i = 0.0
-    #for i in range(1000):
-    for i in range(len(phot['color'])):
-        delta_color = phot['color'][i] - isocol0  #note isocol0 goes with isomass0 below, not making cuts 
-        delta_mag   = phot[sysmag2][i]  - isomag0  #in isochrones, cuts are only done in data.
-        error_cov = np.array([[phot['colorerr'][i],0.0],[0.0,phot[sysmag2+'err'][i]]])
-        #a  = likelihood(phot[sysmag2+'err'][i],phot['colorerr'][i],phot['covar'][i],delta_color,delta_mag)
-        a  = likelihood_nocovar(phot[sysmag2+'err'][i],phot['colorerr'][i],delta_color,delta_mag)
-        dN = f_salpeter(isomass0,mass_min_fit,mass_max_fit,alpha)
-        #print len(a), len(dN), np.sum(a*dN)
-        #dN = f_salpeter(isomass0,mass_min,mass_max,alpha)
-        L_tmp = np.sum(a*dN)
-        if L_tmp < 1e-200: logL_tmp = -5000.
-        if L_tmp >= 1e-200: logL_tmp = np.log(L_tmp)
-        logL_i += logL_tmp
-        if i % 100 == 0:
-            print 'alpha = ',alpha,'i = ',i
-        if 0:
-            plt.subplot(2,2,1)
-            plt.ylabel(r'$\rho$exp(...)')
-            plt.plot(isomass0,a*dN,'bo',ms=3,ls='-')
-            plt.subplot(2,2,2)
-            plt.ylabel(r'$\rho$')
-            plt.plot(isomass0,dN,'bo',ms=3,ls='-')
-            plt.subplot(2,2,3)
-            plt.ylabel(r'exp(...)')
-            plt.plot(isomass0,a,'bo',ms=3,ls='-')
-            plt.subplot(2,2,4)
-            plt.ylabel(r'$'+sysmag2+'$')
-            plt.xlabel(r'$'+sysmag1+' - '+sysmag2+'$')
-            plt.axis([-1.0,1.0,11.+dmod0,0+dmod0])
-            plt.scatter(phot_raw['color'],phot_raw[sysmag2],marker='.',s=1,color='gray')
-            plt.scatter(phot['color'],phot[sysmag2],marker='.',s=1,color='k')
-            plt.scatter(phot['color'][i],phot[sysmag2][i],marker='o',color='red',s=8)
-            plt.show()
-    logL_arr[ialpha] = logL_i   
+alpha_fit = result[0] ; delta_minus = result[1] ; delta_plus = result[2]
 
-#logL_arr = logL_arr - logL_arr.min()
-
-nlogL_arr = -1.0*logL_arr + logL_arr.max() + 1
-
-#Post-analysis for lnL curve: find best fitting power-law alpha and its uncertainties 
-#from -lnL + 1/2. (chi^2+1)
-
-s = interpolate.UnivariateSpline(alpha_arr,nlogL_arr,k=3)
-xtmparr = np.arange(alpha_arr.min(),alpha_arr.max(),0.01)
-ytmparr = s(xtmparr)
-
-#find value for minimum 
-hh = np.argmin(ytmparr)
-if hh > 2 and hh <= len(ytmparr)-3:
-    alpha_fit = xtmparr[hh] ; Lfit = ytmparr[hh]
-    hh = np.argmin(abs(ytmparr[xtmparr < alpha_fit]-(Lfit+0.5)))
-    alpha_minus = xtmparr[xtmparr < alpha_fit][hh]
-    hh = np.argmin(abs(ytmparr[xtmparr > alpha_fit]-(Lfit+0.5)))
-    alpha_plus = xtmparr[xtmparr > alpha_fit][hh]
-    delta_plus = alpha_plus - alpha_fit
-    delta_minus = alpha_fit - alpha_plus 
-hh = np.argmin(ytmparr)
+if system == 'wfpc2':
+    col_name = r'F606W - F814W (WFPC2)' ; mag_name = r'F814W (WFPC2)'
+    xmin = -1.25; xmax = 0.75; ymax = 12+dmod0; ymin = dmod0
+    plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
+elif system == 'sdss':
+    col_name = r'$(g - r)_0$' ; mag_name = r'$r_0$'
+    xmin = -1.25; xmax = 0.75; ymax = 6.+dmod0; ymin = -2.+dmod0
+if system == 'acs':
+    col_name = r'F606W - F814W (ACS)' ; mag_name = r'F814W (ACS)'
+    xmin = -1.25; xmax = 0.75; ymax = 12+dmod0; ymin = dmod0
+    plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
+else:
+    pass
 
 plt.subplot(2,2,1) 
-if system == 'acs': 
-    xmin = -1.25; xmax = 0.75; ymax = 12+dmod0; ymin = dmod0
-    plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
-if system == 'wfpc2': 
-    xmin = -1.25; xmax = 0.75; ymax = 12+dmod0; ymin = dmod0
-    plt.axis([-1.25,0.75,10.+dmod0,0+dmod0])
-if system == 'sdss': 
-    xmin = -1.25; xmax = 0.75; ymax = 6.+dmod0; ymin = -2.+dmod0
+
 plt.plot(isocol0,isomag0,lw=1,ls='-',color='green')
 plt.plot(isocol,isomag,lw=5,ls='--',color='blue')
 plt.ylabel(mag_name)
@@ -287,14 +188,12 @@ plt.axis([xmin,xmax,ymax,ymin])
 plt.errorbar(xmin+.35+0.0*magerrmean,magbin,xerr=magerrmean,yerr=None,fmt=None,ecolor='magenta',elinewidth=2.0)
 plt.scatter(phot_raw['color'],phot_raw[sysmag2],color='k',marker='.',s=1)
 plt.scatter(phot['color'],phot[sysmag2],color='r',marker='o',s=2)
-#plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
 plt.title(titlestring)  #loc=1, urh; loc=2: ul; 3: ll; 4: lr; 5: r
 
 dy = ymax - ymin
-if hh > 2 and hh <= len(ytmparr)-3:
+if alpha_fit > -99.:
     plt.text(xmax-.90,ymin+0.1*dy,r'$\alpha_{in}$='+'{0:5.2f}'.format(alpha_in)+'',fontsize=11)
 
-#plt.text(xmax-.90,ymin+0.8,r''+'{0:5.2f}'.format(mass_min)+' $<$ M $<$ '+'{0:5.2f}'.format(mass_max)+'',fontsize=11)
 plt.text(xmax-.90,ymin+0.18*dy,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',fontsize=11)
 plt.text(xmax-.90,ymin+0.26*dy,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
 plt.text(xmax-.90,ymin+0.34*dy,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
@@ -304,8 +203,6 @@ ymin = phot[sysmag2].min()-.3
 ymax = phot[sysmag2].max()+.3
 nbins = int((ymax-ymin)/0.2)
 n_r , rhist = np.histogram(phot[sysmag2],bins=nbins)
-#n_r = n_r / float(n_r.max())
-#plt.hist(phot[sysmag2],bins=20)
 plt.bar(rhist[:-1],n_r,rhist[1]-rhist[0],edgecolor='k')
 plt.xlabel(r'$'+sysmag2+'$')
 plt.ylabel(r'$dN$')
@@ -316,13 +213,12 @@ xmin = alpha_arr.min()-.2; xmax = alpha_arr.max()+.2
 ymax = nlogL_arr.max()+.1*(nlogL_arr.max()-nlogL_arr.min()); ymin = nlogL_arr.min()-.1*(nlogL_arr.max()-nlogL_arr.min())
 plt.plot(alpha_arr,nlogL_arr,'bo',markersize=7)
 plt.plot(xtmparr,ytmparr,ls='--',lw=1.25,color='blue')
-if hh > 2 and hh <= len(ytmparr)-3: plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
+if alpha_fit > -99.: plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
 plt.axis([xmin,xmax,ymin,ymax])
-#plt.title(r'Best-Fit Power-Law IMF')
 plt.xlabel(r'$\alpha$')
 plt.ylabel(r'$-$ln\,$L$ + $k$')
 #plt.savefig(os.getenv('HOME')+'/Desktop/alpha_lnL.png',bbox_inches='tight')
-if hh > 2 and hh <= len(ytmparr)-3: plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-ymin),r'$\alpha\,='+'{0:5.2f}'.format(alpha_fit)+'^{'+
+if alpha_fit > -99.: plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-ymin),r'$\alpha\,='+'{0:5.2f}'.format(alpha_fit)+'^{'+
     '{0:+5.2f}'.format(delta_plus)+'}_{'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
 
 
