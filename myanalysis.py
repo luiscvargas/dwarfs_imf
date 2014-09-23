@@ -85,6 +85,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        ydum = f_salpeter(xdum,mass_min,mass_max,alpha_)
    elif kwargs['imftype'] == 'chabrier':
        ydum = f_chabrier(xdum,mass_min,mass_max,mc_,sigmac_)
+       print 'chabrier!'
    elif kwargs['imftype'] == 'kroupa':
        ydum = f_kroupa(xdum,mass_min,mass_max,alpha1_,alpha2_)
 
@@ -235,7 +236,7 @@ def f_salpeter(mass_arr,mass_min,mass_max,alpha,**kwargs):
     dN_arr = (mass_arr**(-1.*alpha)) * dmass_arr
     #dN_arr[mass_arr < mass_min] = 0.0
     #dN_arr[mass_arr > mass_max] = 0.0
-    dN_arr[mass_arr < 0.10] = 0.0
+    dN_arr[mass_arr < 0.08] = 0.0
     dN_arr[mass_arr > 100.] = 0.0
     if 'normalize' in kwargs.keys():
         if kwargs['normalize'] == False: #return dN_arr before normalization
@@ -256,7 +257,7 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
     dN_arr = ((1./(np.log(10.)*mass_arr)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
         np.exp(-1. * (np.log10(mass_arr)-np.log10(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
         dmass_arr)
-    dN_arr[mass_arr < 0.10] = 0.0
+    dN_arr[mass_arr < 0.08] = 0.0
     dN_arr[mass_arr > 100.0] = 0.0
     if 'normalize' in kwargs.keys():
         if kwargs['normalize'] == False: #return dN_arr before normalization
@@ -356,19 +357,22 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
     #check that bounds for mmin/mmax_global are larger than for mmin & mmax calculated from
     #the isochrone
     if mass_min_global > mass_min_fit: 
-        print "Min Mass (LF) > Min Mass (Mag cut)" 
+        print "Min Mass (LF) > Min Mass (Mag cut)",mass_min_global,mass_min_fit
         raise SystemExit
     if mass_max_global < mass_max_fit: 
-        print "Max Mass (LF) > Max Mass (Mag cut)" 
+        print "Max Mass (LF) > Max Mass (Mag cut)",mass_max_global,mass_max_fit
+
         raise SystemExit
 
     #and check that they are between the range of isochrone masses present
     if mass_min_global < iso['mass'].min(): 
-        print "Min Mass (LF) below isochrone limit" 
-        raise SystemExit
+        mass_min_global = iso['mass'].min()
+        print "Min Mass (LF) below isochrone limit",mass_min_global,iso['mass'].min()
+        #raise SystemExit
     if mass_max_global > iso['mass'].max(): 
-        print "Max Mass (LF) above isochrone limit"
-        raise SystemExit
+        mass_max_global = iso['mass'].max()
+        print "Max Mass (LF) above isochrone limit",mass_min_global,iso['mass'].max()
+        #raise SystemExit
 
     #print out masses
     print "Mmin = ",mass_min_fit
