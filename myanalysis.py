@@ -6,7 +6,7 @@ from mywrangle import *
 
 def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
-   testing = 0 #testing = 1 in stand alone test_simulate_cmd.py code
+   testing = 1 #testing = 1 in stand alone test_simulate_cmd.py code
 
    if 'imftype' not in kwargs.keys(): raise SystemExit
 
@@ -61,6 +61,17 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        mc_ = kwargs['mc']
        sigmac_ = kwargs['sigmac']
 
+   elif kwargs['imftype'] == 'kroupa':
+       if 'alpha1' not in kwargs.keys():
+           print "Error: alpha1 (kwarg=alpha1) (slope for 0.08<M<0.5) not specified for Kroupa function" 
+           raise SystemExit
+       elif 'alpha2' not in kwargs.keys():
+           print "Error: alpha1 (kwarg=alpha1) (slope for 0.5<M<1.0) not specified for Kroupa function" 
+           raise SystemExit
+       pass
+       alpha1_ = kwargs['alpha1']
+       alpha2_ = kwargs['alpha2']
+
    else:
        print "Need to specify either Salpeter or Chabrier and their respective params!"
        raise SystemExit
@@ -74,6 +85,8 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        ydum = f_salpeter(xdum,mass_min,mass_max,alpha_)
    elif kwargs['imftype'] == 'chabrier':
        ydum = f_chabrier(xdum,mass_min,mass_max,mc_,sigmac_)
+   elif kwargs['imftype'] == 'kroupa':
+       ydum = f_kroupa(xdum,mass_min,mass_max,alpha1_,alpha2_)
 
    if testing == 1:
        plt.subplot(1,2,1)
@@ -103,7 +116,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    #causing the spline interpolator to crash later on.
 
    #xrantmparr = np.random.random_sample(nstars*200) * (iso['mass'].max() - iso['mass'].min()) + iso['mass'].min()
-   #yrantmparr = np.random.random_sample(nstars*200) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
+   #yrantmparr = np.random.random_sample(nstars*15) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
    xrantmparr = np.random.random_sample(nstars*15) * (mass_max - mass_min) + mass_min   
    yrantmparr = np.random.random_sample(nstars*15) * 1.02*ydum.max() 
    #yrantmparr = np.random.random_sample(nstars*15) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
@@ -225,10 +238,7 @@ def f_salpeter(mass_arr,mass_min,mass_max,alpha,**kwargs):
     dN_arr[mass_arr < 0.10] = 0.0
     dN_arr[mass_arr > 100.] = 0.0
     if 'normalize' in kwargs.keys():
-        if kwargs['normalize'] == False:
-            #called by estimate_n_required
-            #dN_arr[mass_arr < mass_min] = 0.0
-            #dN_arr[mass_arr > mass_max] = 0.0
+        if kwargs['normalize'] == False: #return dN_arr before normalization
             return dN_arr
     #Find normalization - 12-aug-2012
     knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
@@ -249,12 +259,45 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
     dN_arr[mass_arr < 0.10] = 0.0
     dN_arr[mass_arr > 100.0] = 0.0
     if 'normalize' in kwargs.keys():
-        if kwargs['normalize'] == False:
+        if kwargs['normalize'] == False: #return dN_arr before normalization
             return dN_arr
     #Find normalization - 12-aug-2012
     knorm = 1. / dN_arr.sum()
     dN_arr = knorm * dN_arr
     return dN_arr
+
+#Define a Kroupa-like IMF, i.e. with two broken power laws. For low mass-only systems
+#the high mass segment, M > 1 Msun is not important. Here it is fixed to alpha=2.3 as
+#in Kroupa 2001. The Kroupa single-star IMF values are: alpha = 1.3 pm 0.5 for 
+#0.08 < M < 0.5 Msun, and alpha = 2.3 pm 0.3 for 0.5 < M < 1 Msun.
+def f_kroupa(mass_arr,mass_min,mass_max,alpha_1,alpha_2,**kwargs):
+    alpha_3 = 2.3
+    #to end sets last element to 0 otherwise one element too few.
+    dmass_arr = np.ediff1d(mass_arr,to_end=0.0)   
+    dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
+    dmass_arr = abs(dmass_arr)  #makes dM positive
+    #Define dN for each of the segments
+    f_23 = (1.0**(-1.*alpha_3)) / (1.0**(-1.*alpha_3)) 
+    f_12 = (0.5**(-1.*alpha_2)) / (0.5**(-1.*alpha_1)) * f_23
+    dN_arr = mass_arr * 0.0 + 0.0
+    dN_arr_1 = f_12 * (mass_arr**(-1.*alpha_1)) * dmass_arr
+    dN_arr_2 = f_23 * (mass_arr**(-1.*alpha_2)) * dmass_arr
+    dN_arr_3 = (mass_arr**(-1.*alpha_3)) * dmass_arr
+    #Assign dN_arr_1/2/3 only to their corresponding mass ranges
+    dN_arr[(mass_arr < 0.08)] = 0.0
+    dN_arr[(mass_arr >= 0.08) & (mass_arr < 0.5)] = dN_arr_1[(mass_arr >= 0.08) & (mass_arr < 0.5)]
+    dN_arr[(mass_arr >= 0.50) & (mass_arr < 1.0)] = dN_arr_2[(mass_arr >= 0.50) & (mass_arr < 1.0)]
+    dN_arr[(mass_arr >= 1.00)] = dN_arr_3[(mass_arr >= 1.00)]
+    dN_arr[(mass_arr > 100.0)] = 0.0
+    #Now splice the segments together so that dN/dM is continuous
+    if 'normalize' in kwargs.keys():
+        if kwargs['normalize'] == False: #return dN_arr before normalization
+            return dN_arr
+    #Find normalization - 12-aug-2012
+    knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
+    dN_arr = knorm * dN_arr
+    return dN_arr
+
     
 def likelihood_matrix(cmd_point,iso_point,error_cov,c_arr):
     """Perform calculations as ndarrays and not as matrices;  have
@@ -355,6 +398,20 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
         mc_ = kwargs['mc']
         sigmac_ = kwargs['sigmac']
         f_tmp = f_chabrier(xdum,mass_min_global,mass_max_global,mc_,sigmac_,normalize=False)
+        f_all = np.sum(f_tmp[(xdum >= mass_min_global) & (xdum <= mass_max_global)])
+        f_cut = np.sum(f_tmp[(xdum >= mass_min_fit) & (xdum <= mass_max_fit)])
+
+    elif kwargs['imftype'] == 'kroupa':
+        if 'alpha1' not in kwargs.keys():
+            print "Error: alpha1 (kwarg=alpha1) (slope for 0.08<M<0.5) not specified for Kroupa function" 
+            raise SystemExit
+        elif 'alpha2' not in kwargs.keys():
+            print "Error: alpha2 (kwarg=alpha2) (slope for 0.5<M<1.0) not specified for Kroupa function" 
+            raise SystemExit
+        pass
+        alpha1_ = kwargs['alpha1']
+        alpha2_ = kwargs['alpha2']
+        f_tmp = f_kroupa(xdum,mass_min_global,mass_max_global,alpha1_,alpha2_,normalize=False)
         f_all = np.sum(f_tmp[(xdum >= mass_min_global) & (xdum <= mass_max_global)])
         f_cut = np.sum(f_tmp[(xdum >= mass_min_fit) & (xdum <= mass_max_fit)])
 

@@ -27,6 +27,9 @@ if sim == 1:
     #mag_max_arr = [28.5,29.5,30.5]   <----done manually
 
     alpha_in = 2.35
+    imftype = 'kroupa'
+    alpha_in_1 = 1.00
+    alpha_in_2 = 3.00
     start_seed = 12345
 
     system = 'acs'
@@ -39,6 +42,8 @@ if sim == 1:
     dmod0  = 20.63  #dmod to Hercules
     #nstars = 4500
     nstars = 2500
+
+    y2max = 30.0
 
     titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
@@ -73,19 +78,27 @@ if sim == 1:
 
     #Define some mass cut way belwo observational cut but not as low as limit of isochrone in order to make
     #MC mock data code run faster (less samples are thrown out)
-    mass_min_global = 0.25
+    if y2max >= 29.4: mass_min_global = 0.12
+    if y2max < 29.4: mass_min_global = 0.25
 
-    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,28.5,  
+    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
         #y1=24.3, y2=28.5
        imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
 
-    phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-    system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+    if imftype == 'salpeter':
+        phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+        system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+    elif imftype == 'chabrier':
+        phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+        system,sysmag1,sysmag2,imftype='chabrier',mc=mc_in,sigmac=sigmac_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+    elif imftype == 'kroupa':
+        phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+        system,sysmag1,sysmag2,imftype='kroupa',alpha1=alpha_in_1,alpha2=alpha_in_2,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
      #cuts in color not in estimate_required_n
 
     phot_raw = np.copy(phot)
 
-    phot     = filter_phot(phot,system,sysmag1,sysmag2)
+    phot     = filter_phot(phot,system,sysmag1,sysmag2,x1=-1.5,x2=2.5,y1=24.3,y2=y2max)
 
 elif sim == 0:
 
