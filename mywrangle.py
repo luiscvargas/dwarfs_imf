@@ -78,11 +78,23 @@ def read_phot(photfile,system,sysmag1,sysmag2):
 
     return data
 
-def filter_phot(data,system,sysmag1,sysmag2):
+def filter_phot(data,system,sysmag1,sysmag2,**kwargs):
+
+    if 'y1' in kwargs.keys():
+        y1_ = kwargs['y1']
+    else: y1_ = 24.3
+    if 'y2' in kwargs.keys():
+        y2_ = kwargs['y2']
+    else: y2_ = 28.5
+    if 'x1' in kwargs.keys():
+        x1_ = kwargs['x1']
+    else: x1_ = -0.7
+    if 'x2' in kwargs.keys():
+        x2_ = kwargs['x2']
+    else: x2_ = 0.2
 
     if system == 'acs':
-        x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5   #y1 = 24.3, y2=28.5
-        #y2=29.2
+        x1 = x1_ ; x2 = x2_ ; y1 = y1_ ; y2 = y2_   #y1 = 24.3, y2=28.5
         data = data[(data['color'] >= x1) & (data['color'] <= x2) & 
         (data['F814W'] <= y2) & (data['F814W'] >= y1) & (data['clip'] == 0)]
         if sysmag2 != 'F814W' or sysmag1 != 'F606W':
@@ -90,7 +102,7 @@ def filter_phot(data,system,sysmag1,sysmag2):
             raise SystemExit
 
     if system == 'wfpc2':
-        x1=-0.7 ; x2= 0.2 ; y1=24.3 ; y2=28.5
+        x1 = x1_ ; x2 = x2_ ; y1 = y1_ ; y2 = y2_   #y1 = 24.3, y2=28.5
         data = data[(data['color'] >= x1) & (data['color'] <= x2) & 
         (data['F814W'] <= y2) & (data['F814W'] >= y1) & (data['clip'] == 0)]
         if sysmag2 != 'F814W' or sysmag1 != 'F606W':
