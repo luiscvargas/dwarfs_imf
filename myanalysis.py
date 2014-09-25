@@ -311,7 +311,8 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
         if kwargs['normalize'] == False: #return dN_arr before normalization
             return dN_arr
     #Find normalization - 12-aug-2012
-    knorm = 1. / dN_arr.sum()
+    #knorm = 1. / dN_arr.sum()
+    knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
     dN_arr = knorm * dN_arr
     return dN_arr
 
