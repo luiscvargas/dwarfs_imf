@@ -97,7 +97,7 @@ def maximize_em_one(param_arr,phot,iso,sysmag1,sysmag2,dmod0,mass_min_fit,mass_m
     #Post-analysis for lnL curve: find best fitting power-law alpha and its uncertainties 
     #from -lnL + 1/2. (chi^2+1)
 
-    s = interpolate.UnivariateSpline(param_arr,nlogL_arr,k=3)
+    s = interpolate.UnivariateSpline(param_arr,nlogL_arr,k=3,s=0)
     xtmparr = np.arange(param_arr.min(),param_arr.max(),0.0025)
     ytmparr = s(xtmparr)
 
