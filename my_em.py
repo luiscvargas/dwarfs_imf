@@ -5,7 +5,7 @@ from scipy.interpolate import interp1d
 from mywrangle import *
 from myanalysis import *
 
-def maximize_em_salpeter(alpha_arr,phot,iso,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,**kwargs):
+def maximize_em_one(param_arr,phot,iso,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,imftype,**kwargs):
     #iso is isochrone np struct array passed from main, it may or 
     #may not include cuts in mass, magnitude, etc (does not if iso0
     #is passed in
@@ -23,9 +23,9 @@ def maximize_em_salpeter(alpha_arr,phot,iso,sysmag1,sysmag2,dmod0,mass_min_fit,m
     isocol = iso[sysmag1] - iso[sysmag2] 
     isomag = iso[sysmag2] + dmod0
 
-    logL_arr  = np.empty(len(alpha_arr)) ; logL_arr.fill(0.)
+    logL_arr  = np.empty(len(param_arr)) ; logL_arr.fill(0.)
 
-    for ialpha,alpha in enumerate(alpha_arr):
+    for iparam,param in enumerate(param_arr):
         logL_i = 0.0
         #for i in range(1000):
         for i in range(len(phot['color'])):
@@ -35,7 +35,30 @@ def maximize_em_salpeter(alpha_arr,phot,iso,sysmag1,sysmag2,dmod0,mass_min_fit,m
 
             #a  = likelihood(phot[sysmag2+'err'][i],phot['colorerr'][i],phot['covar'][i],delta_color,delta_mag)
             a  = likelihood_nocovar(phot[sysmag2+'err'][i],phot['colorerr'][i],delta_color,delta_mag)
-            dN = f_salpeter(isomass,mass_min_fit,mass_max_fit,alpha)
+            if imftype == 'salpeter':
+                dN = f_salpeter(isomass,mass_min_fit,mass_max_fit,param)
+            elif imftype == 'chabrier':
+                if 'sigmac' in kwargs.keys():
+                    dN = f_chabrier(isomass,mass_min_fit,mass_max_fit,param,kwargs['sigmac']) 
+                elif 'mc' in kwargs.keys():
+                    dN = f_chabrier(isomass,mass_min_fit,mass_max_fit,kwargs['mc'],param)
+                elif ('mc' in kwargs.keys() and 'sigmac' in kwargs.keys()):
+                    print "Only mc or sigmac can be fixed"
+                    raise SystemExit
+                else:
+                    print "Fix either mc or sigmac"
+                    raise SystemExit
+            elif imftype == 'kroupa':
+                if 'alpha2' in kwargs.keys():
+                    dN = f_kroupa(isomass,mass_min_fit,mass_max_fit,param,kwargs['alpha2'])
+                elif 'alpha1' in kwargs.keys():
+                    dN = f_kroupa(isomass,mass_min_fit,mass_max_fit,kwargs['alpha1'],param)
+                elif ('alpha1' in kwargs.keys() and 'alpha2' in kwargs.keys()):
+                    print "Only alpha1 or alpha2 can be fixed"
+                    raise SystemExit
+                else:
+                    print "Fix either alpha1 or alpha2"
+                    raise SystemExit
 
             #print len(a), len(dN), np.sum(a*dN)
             #dN = f_salpeter(isomass0,mass_min,mass_max,alpha)
@@ -46,7 +69,7 @@ def maximize_em_salpeter(alpha_arr,phot,iso,sysmag1,sysmag2,dmod0,mass_min_fit,m
             if L_tmp >= 1e-200: logL_tmp = np.log(L_tmp)
             logL_i += logL_tmp
 
-            if i % 200 == 0: print 'alpha = ',alpha,'i = ',i
+            if i % 200 == 0: print 'Param = ',param,'i = ',i
 
             if testing == 1:
                 plt.subplot(2,2,1)
@@ -67,34 +90,34 @@ def maximize_em_salpeter(alpha_arr,phot,iso,sysmag1,sysmag2,dmod0,mass_min_fit,m
                 plt.scatter(phot['color'],phot[sysmag2],marker='.',s=1,color='k')
                 plt.scatter(phot['color'][i],phot[sysmag2][i],marker='o',color='red',s=8)
                 plt.show()
-        logL_arr[ialpha] = logL_i   
+        logL_arr[iparam] = logL_i   
 
     nlogL_arr = -1.0*logL_arr + logL_arr.max() + 1
 
     #Post-analysis for lnL curve: find best fitting power-law alpha and its uncertainties 
     #from -lnL + 1/2. (chi^2+1)
 
-    s = interpolate.UnivariateSpline(alpha_arr,nlogL_arr,k=3)
-    xtmparr = np.arange(alpha_arr.min(),alpha_arr.max(),0.01)
+    s = interpolate.UnivariateSpline(param_arr,nlogL_arr,k=3)
+    xtmparr = np.arange(param_arr.min(),param_arr.max(),0.0025)
     ytmparr = s(xtmparr)
 
     #find value for minimum 
     hh = np.argmin(ytmparr)
     if hh > 2 and hh <= len(ytmparr)-3:
-        alpha_fit = xtmparr[hh] ; Lfit = ytmparr[hh]
-        hh = np.argmin(abs(ytmparr[xtmparr < alpha_fit]-(Lfit+0.5)))
-        alpha_minus = xtmparr[xtmparr < alpha_fit][hh]
-        hh = np.argmin(abs(ytmparr[xtmparr > alpha_fit]-(Lfit+0.5)))
-        alpha_plus = xtmparr[xtmparr > alpha_fit][hh]
-        delta_plus = alpha_plus - alpha_fit
-        delta_minus = alpha_fit - alpha_minus 
+        param_fit = xtmparr[hh] ; Lfit = ytmparr[hh]
+        hh = np.argmin(abs(ytmparr[xtmparr < param_fit]-(Lfit+0.5)))
+        param_minus = xtmparr[xtmparr < param_fit][hh]
+        hh = np.argmin(abs(ytmparr[xtmparr > param_fit]-(Lfit+0.5)))
+        param_plus = xtmparr[xtmparr > param_fit][hh]
+        delta_plus = param_plus - param_fit
+        delta_minus = param_fit - param_minus 
     else:
-        alpha_fit = -99.0
+        param_fit = -99.0
         delta_plus = 0.0
         delta_minus = 0.0
     hh = np.argmin(ytmparr)
  
-    result_arr = np.array([alpha_fit,delta_minus,delta_plus])
+    result_arr = np.array([param_fit,delta_minus,delta_plus])
 
     return nlogL_arr,result_arr,xtmparr,ytmparr
 
