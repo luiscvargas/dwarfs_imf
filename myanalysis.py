@@ -6,7 +6,10 @@ from mywrangle import *
 
 def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
-   testing = 1 #testing = 1 in stand alone test_simulate_cmd.py code
+   testing = 0 #testing = 1 in stand alone test_simulate_cmd.py code
+
+   if 'testing' in kwargs.keys():
+       if kwargs['testing'] == True: testing = 1
 
    if 'imftype' not in kwargs.keys(): raise SystemExit
 
@@ -85,7 +88,6 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        ydum = f_salpeter(xdum,mass_min,mass_max,alpha_)
    elif kwargs['imftype'] == 'chabrier':
        ydum = f_chabrier(xdum,mass_min,mass_max,mc_,sigmac_)
-       print 'chabrier!'
    elif kwargs['imftype'] == 'kroupa':
        ydum = f_kroupa(xdum,mass_min,mass_max,alpha1_,alpha2_)
 
@@ -132,7 +134,8 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        if count == nstars: break
        idx = np.abs(xdum - xrantmp).argmin()
        #if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
-       if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > mass_min) & (xdum[idx] < mass_max):
+            #should xdum[idx] go here, or should xrantmp? 
+       if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] >= mass_min) & (xdum[idx] < mass_max):
            xranarr[count] = xrantmparr[i]
            yranarr[count] = yrantmparr[i]
            #print count,xrantmparr[i],yrantmparr[i],xranarr[count],yranarr[count]
@@ -154,15 +157,16 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    #Interpolate isochrone magnitude-mass relation
    isort = np.argsort(iso['mass'])  #! argsort = returns indices for sorted array, sort=returns sorted array
-   if testing == 1:
-       plt.plot(iso['mass'][isort],iso[sysmag2][isort]+dist_mod,'b.',ls='--')
-       plt.show()
+   #if testing == 1:
+   #    plt.plot(iso['mass'][isort],iso[sysmag2][isort]+dist_mod,'b.',ls='--')
+   #    plt.show()
    f1 = interpolate.splrep(iso['mass'][isort],iso[sysmag1][isort]+dist_mod)
    f2 = interpolate.splrep(iso['mass'][isort],iso[sysmag2][isort]+dist_mod)
 
    #Assign magnitudes to each star based on their mass and the mass-magnitude relation calculated above.
    mag1ranarr_0 = interpolate.splev(xranarr,f1)
    mag2ranarr_0 = interpolate.splev(xranarr,f2)  #band 2 = for system=wfpc2
+   der_mag2ranarr_0 = interpolate.splev(xranarr,f2,der=1)  #band 2 = for system=wfpc2
    colorranarr_0  = mag1ranarr_0 - mag2ranarr_0
 
    #Initialize data magnitude arrays which will include photometric uncertainties.
@@ -184,12 +188,56 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    colorranarr = mag1ranarr - mag2ranarr
 
    if testing == 1:   
+       plt.subplot(3,2,1) 
+       plt.plot(iso[sysmag2]+dist_mod,iso['mass'],ls='-',color='blue')  #without [isort]
+       plt.scatter(mag2ranarr,xranarr,s=1,marker='.',color='red')
+       plt.axis([24.5,mag2ranarr.max(),xranarr.min()-.02,xranarr.max()+.02])
+
+       plt.subplot(3,2,2) 
+       plt.scatter(mag2ranarr_0,der_mag2ranarr_0,color='green',marker='.',s=1)
+       plt.axis([24.5,mag2ranarr.max(),-40,der_mag2ranarr_0.max()+5])
+
+       plt.subplot(3,2,3) 
        plt.plot(isocol,isomag,ls='-',color='red',lw=2)
        plt.xlabel(r"$F606W-F814W$")
        plt.ylabel(r"$F814W$")
        plt.scatter(colorranarr,mag2ranarr,marker='o',s=3,color='b')
        plt.axis([isocol.min()-.25,isocol.max()+.25,dist_mod+12,dist_mod-2])
+
+       plt.subplot(3,2,4) 
+       nbins = int((mag2ranarr.max()-mag2ranarr.min())/0.25)
+       n_r , rhist = np.histogram(mag2ranarr,bins=nbins)
+       plt.bar(rhist[:-1],n_r,rhist[1]-rhist[0],edgecolor='k')
+       plt.xlabel(r'$'+sysmag2+'$')
+       plt.ylabel(r'$dN$')
+       plt.axis([24.5,mag2ranarr.max(),0,1.1*max(n_r)])
+       
+       ax = plt.subplot(3,2,5) 
+       nbins = int((mag2ranarr_0.max()-mag2ranarr_0.min())/0.25)
+       n_r , rhist = np.histogram(mag2ranarr_0,bins=nbins)
+       rhist_err = np.sqrt(n_r)
+       ax.set_yscale("log", nonposy='clip')
+       #ax.set_xscale("log", nonposx='clip')
+       plt.errorbar(rhist[:-1],n_r,yerr=rhist_err,color='k',marker='o',markersize=1)
+       plt.xlabel(r'$'+sysmag2+'$\,(zero scatter)')
+       plt.ylabel(r'$dN$')
+       plt.axis([24.5,mag2ranarr.max(),.01*max(n_r),2*max(n_r)])
+
+       ax = plt.subplot(3,2,6) 
+       nbins = int((xranarr.max()-xranarr.min())/0.025)
+       n_r , rhist = np.histogram(xranarr,bins=nbins)
+       rhist_err = np.sqrt(n_r)
+       ax.set_yscale("log", nonposy='clip')
+       ax.set_xscale("log", nonposx='clip')
+       plt.errorbar(rhist[:-1],n_r,yerr=rhist_err,color='k',marker='o',markersize=1)
+       plt.xlabel(r'log\,M')
+       plt.ylabel(r'$dN$')
+       plt.axis([xranarr.min(),xranarr.max(),.2*max(n_r),1.5*max(n_r)])
+       plt.plot([0.5,0.5],[.2*max(n_r),1.5*max(n_r)],color='g',ls='-.')
+       plt.plot([0.6,0.6],[.2*max(n_r),1.5*max(n_r)],color='magenta',ls='-.')
+       plt.plot([0.4,0.4],[.2*max(n_r),1.5*max(n_r)],color='orange',ls='-.')
        plt.show()
+
 
    #Now package data into structure numpy array just as real photometric data 
 
