@@ -19,31 +19,44 @@ sim = 1
 
 if sim == 1:
 
-    #nstars_arr = [1000,2000,5000]
-    #seed_arr = 5*np.arange(10) + 1
-    #f_err_arr = [0.2,1.0,5.0]
-    #alpha_in_arr = [0.5,1.0,1.5,2.0,2.5,3.0]
-
-    #mag_max_arr = [28.5,29.5,30.5]   <----done manually
-
-    alpha_in = 2.35
-    imftype = 'kroupa'
-    alpha_in_1 = 1.00
-    alpha_in_2 = 3.00
     start_seed = 12345
-
+    nstars = 2500
+    y2max = 28.5
     system = 'acs'
     sysmag1   = 'F606W'
     sysmag2   = 'F814W'
-
     isoage = 14.0
     isofeh = -2.5
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
-    #nstars = 4500
-    nstars = 2500
+    ferr = 1.0
+    imftype = 'kroupa'
 
-    y2max = 30.0
+    #values for parameter to vary - same as parameter to recover
+    if imftype == 'salpeter': 
+        imftype_in = 'salpeter'
+        imftype_out = 'salpeter'
+        alpha_in = 2.35
+        param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6]) # alpha_out_arr
+
+    if imftype == 'chabrier': 
+        imftype_in = 'chabrier'
+        imftype_out = 'chabrier'
+        mc_in = 0.60  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        sigmac_in = 0.10  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        sigmac_out = 0.10  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        #maximize likelihood over mc
+        param_out_arr = np.array([0.05,0.10,0.15,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90]) #mc_out_arr
+        ##note mc canNOT be zero, because log mc becomes undefined
+
+    if imftype == 'kroupa': 
+        imftype_in = 'kroupa'
+        imftype_out = 'kroupa'
+        alpha1_in = 1.30  #fixed to be the same for both input and output, if not, need to specify alpha2_in, and alpha2_out
+        alpha2_in = 2.30  #fixed to be the same for both input and output, if not, need to specify alpha2_in, and alpha2_out
+        alpha2_out = 2.30  #fixed to be the same for both input and output, if not, need to specify alpha2_in, and alpha2_out
+        #maximize likelihood over alpha1
+        param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8]) #alpha1_out_arr
 
     titlestring = 'Simulated CMD, '+'{0}'.format(nstars)+' Members'
 
@@ -69,8 +82,8 @@ if sim == 1:
     #Create simulated data. simulate_cmd module called from myanalysis.py
     #For test version, see test_simulate_cmd.py
 
-    #magerrarr1 = magerrarr1*0.1 #+ .01
-    #magerrarr2 = magerrarr2*0.1 #+ .01
+    magerrarr1 = magerrarr1*ferr #+ .01
+    magerrarr2 = magerrarr2*ferr #+ .01
 
     #mass_min cut not included: want all stars in cmd to avoid malmquist bias
     #upper mass cut more complex: imf is zero-age imf, whereas LF changes with
@@ -78,22 +91,39 @@ if sim == 1:
 
     #Define some mass cut way belwo observational cut but not as low as limit of isochrone in order to make
     #MC mock data code run faster (less samples are thrown out)
-    if y2max >= 29.4: mass_min_global = 0.12
-    if y2max < 29.4: mass_min_global = 0.25
+    if y2max >= 29.0: mass_min_global = 0.11
+    if y2max < 29.0: mass_min_global = 0.25
 
-    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
         #y1=24.3, y2=28.5
-       imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
+    #nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
+    #   imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
 
-    if imftype == 'salpeter':
+    if imftype_in == 'salpeter':
+        nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
+            imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
         phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-        system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
-    elif imftype == 'chabrier':
+            system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+    if imftype_in == 'chabrier':
+        nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
+            imftype='chabrier',mc=mc_in,sigmac=sigmac_in,mass_min_global=mass_min_global)
         phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-        system,sysmag1,sysmag2,imftype='chabrier',mc=mc_in,sigmac=sigmac_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
-    elif imftype == 'kroupa':
+            system,sysmag1,sysmag2,imftype='chabrier',mc=mc_in,sigmac=sigmac_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+    if imftype_in == 'kroupa':
+        nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
+            imftype='kroupa',alpha1=alpha1_in,alpha2=alpha2_in,mass_min_global=mass_min_global)
         phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-        system,sysmag1,sysmag2,imftype='kroupa',alpha1=alpha_in_1,alpha2=alpha_in_2,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+            system,sysmag1,sysmag2,imftype='kroupa',alpha1=alpha1_in,alpha2=alpha2_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+
+
+    #if imftype == 'salpeter':
+    #    phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+    #    system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+    #elif imftype == 'chabrier':
+    #    phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+    #    system,sysmag1,sysmag2,imftype='chabrier',mc=mc_in,sigmac=sigmac_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+    #elif imftype == 'kroupa':
+    #    phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
+    #    system,sysmag1,sysmag2,imftype='kroupa',alpha1=alpha_in_1,alpha2=alpha_in_2,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
      #cuts in color not in estimate_required_n
 
     phot_raw = np.copy(phot)
@@ -115,8 +145,9 @@ elif sim == 0:
     #nstars = 10000  #only for simulated data
     mass_min_global = 0.05
     mass_max_global = 0.77  #mass max must be below MSTO - make plot to check for this?
+    y2max = 28.5
 
-    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,28.0,  #28.5
+    nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  #28.5
        imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
 
     dsph_select = str(sys.argv[1])
@@ -141,7 +172,7 @@ elif sim == 0:
     #Read in photometry database and extract relevant quantities
     phot     = read_phot('Herc',system,sysmag1,sysmag2)
     phot_raw = np.copy(phot)
-    phot     = filter_phot(phot,system,sysmag1,sysmag2)
+    phot     = filter_phot(phot,system,sysmag1,sysmag2,y2=y2max)
     #phot = read_phot(dsph_select,dataset=system,cuts=True)
     #phot_raw = read_phot(dsph_select,dataset=system,cuts=False)
 
@@ -171,11 +202,18 @@ isomag = iso[sysmag2] + dmod0        ; isomag0 = iso0[sysmag2] + dmod0
 #Loop over data points and isochrone points 
 
 #alpha_arr = [1.1.95,2.15,2.35,2.55,2.75]  #"x" = -alpha
-alpha_arr = np.array([-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
+if sim == 0:  #temporary fix in case of sim == 0, sim == 1 already has param_arr specified
+    alpha_arr = np.array([-0.4,0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0])
+    param_out_arr = alpha_arr
 
-nlogL_arr,result,xtmparr,ytmparr = maximize_em_salpeter(alpha_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit)
+if imftype_out == 'salpeter':
+    nlogL_arr,result,xtmparr,ytmparr = maximize_em_one(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,'salpeter')
+if imftype_out == 'chabrier':
+    nlogL_arr,result,xtmparr,ytmparr = maximize_em_one(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,'chabrier',sigmac=sigmac_out)
+if imftype_out == 'kroupa':
+    nlogL_arr,result,xtmparr,ytmparr = maximize_em_one(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,'kroupa',alpha2=alpha2_out)
 
-alpha_fit = result[0] ; delta_minus = result[1] ; delta_plus = result[2]
+param_fit = result[0] ; delta_minus = result[1] ; delta_plus = result[2]
 
 if system == 'wfpc2':
     col_name = r'F606W - F814W (WFPC2)' ; mag_name = r'F814W (WFPC2)'
@@ -204,12 +242,18 @@ plt.scatter(phot['color'],phot[sysmag2],color='r',marker='o',s=2)
 plt.title(titlestring)  #loc=1, urh; loc=2: ul; 3: ll; 4: lr; 5: r
 
 dy = ymax - ymin
-if alpha_fit > -99.:
-    plt.text(xmax-.90,ymin+0.1*dy,r'$\alpha_{in}$='+'{0:5.2f}'.format(alpha_in)+'',fontsize=11)
+if param_fit > -99.:
+    if imftype_in == 'salpeter': plt.text(xmax-.90,ymin+0.14*dy,r'$\alpha_{in}$='+'{0:5.2f}'.format(alpha_in)+'',fontsize=11)
+    if imftype_in == 'chabrier': 
+        plt.text(xmax-.90,ymin+0.06*dy,r'$M_{c}$='+'{0:5.2f}'.format(mc_in)+'',fontsize=11)
+        plt.text(xmax-.90,ymin+0.14*dy,r'$\sigma_{log\,M_{c}}$='+'{0:5.2f}'.format(sigmac_in)+'',fontsize=11)
+    if imftype_in == 'kroupa': 
+        plt.text(xmax-.90,ymin+0.06*dy,r'$\alpha_{1,in}$='+'{0:5.2f}'.format(alpha1_in)+'',fontsize=11)
+        plt.text(xmax-.90,ymin+0.14*dy,r'$\alpha_{2,in}$='+'{0:5.2f}'.format(alpha2_in)+'',fontsize=11)
 
-plt.text(xmax-.90,ymin+0.18*dy,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',fontsize=11)
-plt.text(xmax-.90,ymin+0.26*dy,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
-plt.text(xmax-.90,ymin+0.34*dy,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
+plt.text(xmax-.90,ymin+0.22*dy,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',fontsize=11)
+plt.text(xmax-.90,ymin+0.30*dy,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
+plt.text(xmax-.90,ymin+0.38*dy,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
 
 plt.subplot(2,2,2)
 ymin = phot[sysmag2].min()-.3
@@ -222,17 +266,27 @@ plt.ylabel(r'$dN$')
 plt.axis([ymin,ymax,0,1.1*max(n_r)])
 
 plt.subplot(2,2,3) 
-xmin = alpha_arr.min()-.2; xmax = alpha_arr.max()+.2 
+xmin = param_out_arr.min()-.3; xmax = param_out_arr.max()+.3
 ymax = nlogL_arr.max()+.1*(nlogL_arr.max()-nlogL_arr.min()); ymin = nlogL_arr.min()-.1*(nlogL_arr.max()-nlogL_arr.min())
-plt.plot(alpha_arr,nlogL_arr,'bo',markersize=7)
+plt.plot(param_out_arr,nlogL_arr,'bo',markersize=7)
 plt.plot(xtmparr,ytmparr,ls='--',lw=1.25,color='blue')
-if alpha_fit > -99.: plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
+if imftype == 'salpeter': plt.plot([alpha_in,alpha_in],[ymin,ymax],ls='..',lw=1.5,color='red')
+if imftype == 'chabrier': plt.plot([mc_in,mc_in],[ymin,ymax],ls='..',lw=1.5,color='red')
+if imftype == 'kroupa'  : plt.plot([alpha1_in,alpha1_in],[ymin,ymax],ls='..',lw=1.5,color='red')
 plt.axis([xmin,xmax,ymin,ymax])
-plt.xlabel(r'$\alpha$')
+plt.xlabel(r'Parameter')
 plt.ylabel(r'$-$ln\,$L$ + $k$')
 #plt.savefig(os.getenv('HOME')+'/Desktop/alpha_lnL.png',bbox_inches='tight')
-if alpha_fit > -99.: plt.text(xmin+.2*(xmax-xmin),ymax-.2*(ymax-ymin),r'$\alpha\,='+'{0:5.2f}'.format(alpha_fit)+'^{'+
-    '{0:+5.2f}'.format(delta_plus)+'}_{'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
+#assumes that for chabrier, it is Mc that is being fit, and for kroupa, alpha1
+if imftype == 'salpeter': plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit to Salpeter IMF')
+if imftype == 'chabrier': plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit to Chabrier IMF')
+if imftype == 'kroupa'  : plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit to Kroupa IMF')
+if imftype == 'salpeter': plt.text(xmin+.4*(xmax-xmin),ymax-.18*(ymax-ymin),r'Fitted Param: $\alpha$')
+if imftype == 'chabrier': plt.text(xmin+.4*(xmax-xmin),ymax-.18*(ymax-ymin),r'Fitted Param: $M_{c}$')
+if imftype == 'kroupa'  : plt.text(xmin+.4*(xmax-xmin),ymax-.18*(ymax-ymin),r'Fitted Param: $\alpha_{1}$')
+if param_fit > -99.: plt.text(xmin+.4*(xmax-xmin),ymax-.30*(ymax-ymin),r'${0:5.2f}'.format(param_fit)+'^{'+
+    '{0:+5.2f}'.format(delta_plus)+'}_{-'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
+print param_fit
 
 
 plt.show()
