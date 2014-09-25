@@ -23,32 +23,38 @@ seed_arr = 5*np.arange(2) + 101
 
 #depth of sample - maximum F814W magnitude
 y2max_arr = [28.5,29.0,29.5,30.0]
-y2max_arr = [30.0]
+#y2max_arr = [30.0]
 
 #scaling for photometric uncertainties: 1.0 = error fnc of mag just as in real Herc data
 ferr_arr = [1.0]
 
-imftype = 'kroupa'
+imftype = 'chabrier'
 
 #values for parameter to vary - same as parameter to recover
 if imftype == 'salpeter': 
     imftype_in = 'salpeter'
     imftype_out = 'salpeter'
     param_in_arr = [1.1,1.7,2.3]  #alpha_in_arr
+    param_in_name = 'alpha'
     param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6]) # alpha_out_arr
 
 if imftype == 'chabrier': 
     imftype_in = 'chabrier'
     imftype_out = 'chabrier'
-    sigmac = 0.69  #making this much smaller will make dn/dm look more gaussian
+    sigmac = 0.69  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
     param_in_arr = [0.08,0.30,0.60]  #mc_in_arr
-    param_out_arr = np.array([0.00,0.05,0.10,0.15,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90]) #mc_out_arr
+    param_in_name = 'mc'
+    #maximize likelihood over mc
+    param_out_arr = np.array([0.02,0.05,0.10,0.15,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90]) #mc_out_arr
+              ##note mc canNOT be zero, because log mc becomes undefined
 
 if imftype == 'kroupa': 
     imftype_in = 'kroupa'
     imftype_out = 'kroupa'
-    alpha2 = 2.30
+    alpha2 = 2.30  #fixed to be the same for both input and output, if not, need to specify alpha2_in, and alpha2_out
     param_in_arr = [1.1,1.7] #alpha1_in_arr
+    param_in_name = 'alpha1'
+    #maximize likelihood over alpha1
     param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8]) #alpha1_out_arr
 
 system = 'acs'
@@ -131,13 +137,13 @@ for istars, nstars in enumerate(nstars_arr):
                     #Loop over data points and isochrone points 
                     #"x" = -alpha, so dN/dM prop to M^x, M^(-1*alpha)
                     if imftype_out == 'salpeter':
-                        nlogL_arr,result,xtmparr,ytmparr = maximize_em_salpeter(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit)
+                        nlogL_arr,result,xtmparr,ytmparr = maximize_em_one(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,'salpeter')
                         param_fit = result[0] ; delta_minus = result[1] ; delta_plus = result[2]
-                    if imftype_out == 'chabrier':
-                        nlogL_arr,result,xtmparr,ytmparr = maximize_em_salpeter(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit)
+                    if imftype_out == 'chabrier':  #sigmac fixed - > input as **kwarg; thus param_out_arr = mc
+                        nlogL_arr,result,xtmparr,ytmparr = maximize_em_one(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,'chabrier',sigmac=sigmac)
                         param_fit = result[0] ; delta_minus = result[1] ; delta_plus = result[2]
-                    if imftype_out == 'kroupa':
-                        nlogL_arr,result,xtmparr,ytmparr = maximize_em_salpeter(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit)
+                    if imftype_out == 'kroupa':    #alpha2 fixed - > input as **kwarg; thus param_out_arr = alpha1
+                        nlogL_arr,result,xtmparr,ytmparr = maximize_em_one(param_out_arr,phot,iso0,sysmag1,sysmag2,dmod0,mass_min_fit,mass_max_fit,'kroupa',alpha2=alpha2)
                         param_fit = result[0] ; delta_minus = result[1] ; delta_plus = result[2]
                     if imftype_out == 'salpeter':
                         f = open('results/eda_salpeter.dat', 'a')
