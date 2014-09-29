@@ -303,7 +303,7 @@ def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
     dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] 
     dmass_arr = abs(dmass_arr)
     dN_arr = ((1./(np.log(10.)*mass_arr)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
-        np.exp(-1. * (np.log10(mass_arr)-np.log10(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
+        np.exp(-1. * (np.log(mass_arr)-np.log(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
         dmass_arr)
     dN_arr[mass_arr < 0.08] = 0.0
     dN_arr[mass_arr > 100.0] = 0.0
