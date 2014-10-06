@@ -30,23 +30,26 @@ if sim == 1:
     isoafe =  0.4
     dmod0  = 20.63  #dmod to Hercules
     ferr = 1.0
-    imftype = 'kroupa'
+
+    imftype = 'salpeter'
 
     #values for parameter to vary - same as parameter to recover
     if imftype == 'salpeter': 
         imftype_in = 'salpeter'
         imftype_out = 'salpeter'
-        alpha_in = 2.35
-        param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6]) # alpha_out_arr
+        alpha_in = 1.1
+        #param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6]) # alpha_out_arr
+        param_out_arr = np.array([0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5]) # alpha_out_arr
+        
 
     if imftype == 'chabrier': 
         imftype_in = 'chabrier'
         imftype_out = 'chabrier'
-        mc_in = 0.60  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
-        sigmac_in = 0.10  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
-        sigmac_out = 0.10  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        mc_in = 0.08  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        sigmac_in = 0.69  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        sigmac_out = 0.69  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
         #maximize likelihood over mc
-        param_out_arr = np.array([0.05,0.10,0.15,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90]) #mc_out_arr
+        param_out_arr = np.array([0.02,0.05,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80]) #mc_out_arr
         ##note mc canNOT be zero, because log mc becomes undefined
 
     if imftype == 'kroupa': 
@@ -255,15 +258,17 @@ plt.text(xmax-.90,ymin+0.22*dy,r'Iso Age    ='+'{0:5.2f}'.format(isoage)+' Gy ',
 plt.text(xmax-.90,ymin+0.30*dy,r'Iso [Fe/H] ='+'{0:5.2f}'.format(isofeh)+' ',fontsize=11)
 plt.text(xmax-.90,ymin+0.38*dy,r'Iso [$\alpha$/Fe] ='+'{0:5.2f}'.format(isoafe)+' ',fontsize=11)
 
-plt.subplot(2,2,2)
-ymin = phot[sysmag2].min()-.3
-ymax = phot[sysmag2].max()+.3
+ax = plt.subplot(2,2,2) 
+ax.set_yscale("log", nonposy='clip')
+ymin = phot[sysmag2].min()-.15
+ymax = phot[sysmag2].max()+.15
 nbins = int((ymax-ymin)/0.2)
 n_r , rhist = np.histogram(phot[sysmag2],bins=nbins)
-plt.bar(rhist[:-1],n_r,rhist[1]-rhist[0],edgecolor='k')
+rhist_err = np.sqrt(n_r)
+plt.errorbar(rhist[:-1],n_r,yerr=rhist_err,color='r',marker='o',markersize=3)
 plt.xlabel(r'$'+sysmag2+'$')
 plt.ylabel(r'$dN$')
-plt.axis([ymin,ymax,0,1.1*max(n_r)])
+plt.axis([ymin,ymax,.1*max(n_r),1.4*max(n_r)])
 
 plt.subplot(2,2,3) 
 xmin = param_out_arr.min()-.3; xmax = param_out_arr.max()+.3
@@ -284,8 +289,8 @@ if imftype == 'kroupa'  : plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit
 if imftype == 'salpeter': plt.text(xmin+.4*(xmax-xmin),ymax-.18*(ymax-ymin),r'Fitted Param: $\alpha$')
 if imftype == 'chabrier': plt.text(xmin+.4*(xmax-xmin),ymax-.18*(ymax-ymin),r'Fitted Param: $M_{c}$')
 if imftype == 'kroupa'  : plt.text(xmin+.4*(xmax-xmin),ymax-.18*(ymax-ymin),r'Fitted Param: $\alpha_{1}$')
-if param_fit > -99.: plt.text(xmin+.4*(xmax-xmin),ymax-.30*(ymax-ymin),r'${0:5.2f}'.format(param_fit)+'^{'+
-    '{0:+5.2f}'.format(delta_plus)+'}_{-'+'{0:5.2f}'.format(delta_minus)+'}$',fontsize=13.5)
+if param_fit > -99.: plt.text(xmin+.4*(xmax-xmin),ymax-.30*(ymax-ymin),r'${0:6.3f}'.format(param_fit)+'^{'+
+    '{0:+6.3f}'.format(delta_plus)+'}_{-'+'{0:6.3f}'.format(delta_minus)+'}$',fontsize=13.5)
 print param_fit
 
 
