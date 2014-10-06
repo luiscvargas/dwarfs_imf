@@ -110,8 +110,8 @@ def filter_phot(data,system,sysmag1,sysmag2,**kwargs):
             raise SystemExit
 
     if system == 'wfc3':
-        print 'not cuts defined yet'
-        raise SystemExit
+        print 'not cuts defined yet, must pass cuts via **kwargs'
+        #raise SystemExit
 
     elif system == 'sdss':
 
