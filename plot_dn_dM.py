@@ -15,7 +15,7 @@ sysmag2 = 'F814W'
 start_seed = 1234
 nstars = 50000
 y2max = 29.5
-imftype = 'salpeter'
+imftype = 'chabrier'
 mass_min = 0.30
 mass_max = 0.74
 dist_mod = 20.63
@@ -58,6 +58,8 @@ if imftype == 'salpeter':
     ydum3 = f_salpeter(xdum,mass_min,mass_max,0.5)
 elif imftype == 'chabrier':
     ydum = f_chabrier(xdum,mass_min,mass_max,mc_,sigmac_)
+    ydum2 = f_chabrier(xdum,mass_min,mass_max,mc_+.2,sigmac_)
+    ydum3 = f_chabrier(xdum,mass_min,mass_max,mc_+.4,sigmac_)
 elif imftype == 'kroupa':
     ydum = f_kroupa(xdum,mass_min,mass_max,alpha1_,alpha2_)
     ydum2 = f_kroupa(xdum,mass_min,mass_max,alpha1_-0.8,alpha2_)
@@ -197,12 +199,8 @@ n_r3 , rhist3 = np.histogram(mag2ranarr_0_3,bins=nbins)
 rhist_err3 = np.sqrt(n_r3)
 ax.set_yscale("log", nonposy='clip')
 g = np.argmin(abs(rhist-25.))
-print g,n_r[g],n_r2[g],n_r3[g]
 n_r2 = (float(n_r[g])/n_r2[g]) * n_r2
 n_r3 = (float(n_r[g])/n_r3[g]) * n_r3
-print n_r
-print n_r2
-print n_r3
 #ax.set_xscale("log", nonposx='clip')
 plt.errorbar(rhist[:-1],n_r,yerr=rhist_err,color='r',marker='o',markersize=1)
 plt.errorbar(rhist2[:-1],n_r2,yerr=rhist_err2,color='g',marker='o',markersize=1)
