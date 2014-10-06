@@ -16,17 +16,21 @@ rc('text', usetex=True)
 rc('font', family='serif')
 
 #number of stars in mock sample: 
-nstars_arr = [1000,2000,5000]
+nstars_arr = [1000,2000]
 
 #seed values - sets number of independentm mock samples
-seed_arr = 5*np.arange(2) + 101
+seed_arr = 5*np.arange(100) + 101
 
 #depth of sample - maximum F814W magnitude
-y2max_arr = [28.5,29.0,29.5,30.0]
+y2max_arr = [28.5,29.5,30.0]
 #y2max_arr = [30.0]
 
 #scaling for photometric uncertainties: 1.0 = error fnc of mag just as in real Herc data
-ferr_arr = [1.0]
+ferr_arr = [0.5,1.0]
+
+#####2x100x2x1 = 400 runs per param_in
+#####400 x 3 params = 1200 runs per imftype
+#####1200 * 60 sec / run / 3600 sec/ hour <= 20 hours !
 
 imftype = 'chabrier'
 
@@ -36,7 +40,7 @@ if imftype == 'salpeter':
     imftype_out = 'salpeter'
     param_in_arr = [1.1,1.7,2.3]  #alpha_in_arr
     param_in_name = 'alpha'
-    param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6]) # alpha_out_arr
+    param_out_arr = np.array([0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5]) # alpha_out_arr
 
 if imftype == 'chabrier': 
     imftype_in = 'chabrier'
@@ -81,6 +85,8 @@ magerrarr2_[magarr2 <= phot['F814W'].min()] = phot['F814Werr'].min()
 del phot
 #########################################################
 
+count_global = 0
+
 for istars, nstars in enumerate(nstars_arr):
 
     for iseed, start_seed in enumerate(seed_arr):
@@ -97,7 +103,7 @@ for istars, nstars in enumerate(nstars_arr):
                     #Define some mass cut way belwo observational cut but not as low as limit of isochrone in order to make
                     #MC mock data code run faster (less samples are thrown out)
                     if y2max >= 29.0: mass_min_global = 0.11
-                    if y2max < 29.0: mass_min_global = 0.25
+                    if y2max < 29.0: mass_min_global = 0.20
 
                     #y1=24.3, y2=28.5
 
@@ -147,12 +153,13 @@ for istars, nstars in enumerate(nstars_arr):
                         param_fit = result[0] ; delta_minus = result[1] ; delta_plus = result[2]
                     if imftype_out == 'salpeter':
                         f = open('results/eda_salpeter.dat', 'a')
-                        f.write('{0:<6d},{1:<7d},{2:<5.2f},{3:<5.2f},{4:<5.2f},{5:<5.2f},{6:<6.3f},{7:<5.3f},{8:<5.3f}\n'.format(nstars,start_seed,y2max,ferr,param_in,-9.0,param_fit,delta_minus,delta_plus))
+                        f.write('{0:<5d},{1:<6d},{2:<7d},{3:<5.2f},{4:<5.2f},{5:<5.2f},{6:<5.2f},{7:<6.3f},{8:<5.3f},{9:<5.3f}\n'.format(count_global,nstars,start_seed,y2max,ferr,param_in,-9.0,param_fit,delta_minus,delta_plus))
                     if imftype_out == 'chabrier':
                         f = open('results/eda_chabrier.dat', 'a')
-                        f.write('{0:<6d},{1:<7d},{2:<5.2f},{3:<5.2f},{4:<5.2f},{5:<5.2f},{6:<6.3f},{7:<5.3f},{8:<5.3f}\n'.format(nstars,start_seed,y2max,ferr,param_in,sigmac,param_fit,delta_minus,delta_plus))
+                        f.write('{0:<5d},{1:<6d},{2:<7d},{3:<5.2f},{4:<5.2f},{5:<5.2f},{6:<5.2f},{7:<6.3f},{8:<5.3f},{9:<5.3f}\n'.format(count_global,nstars,start_seed,y2max,ferr,param_in,sigmac,param_fit,delta_minus,delta_plus))
                     if imftype_out == 'kroupa':
                         f = open('results/eda_kroupa.dat', 'a')
-                        f.write('{0:<6d},{1:<7d},{2:<5.2f},{3:<5.2f},{4:<5.2f},{5:<5.2f},{6:<6.3f},{7:<5.3f},{8:<5.3f}\n'.format(nstars,start_seed,y2max,ferr,param_in,alpha2,param_fit,delta_minus,delta_plus))
+                        f.write('{0:<5d},{1:<6d},{2:<7d},{3:<5.2f},{4:<5.2f},{5:<5.2f},{6:<5.2f},{7:<6.3f},{8:<5.3f},{9:<5.3f}\n'.format(count_global,nstars,start_seed,y2max,ferr,param_in,alpha2,param_fit,delta_minus,delta_plus))
                     f.close()
+                    count_global += 1
 
