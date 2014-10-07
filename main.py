@@ -31,13 +31,13 @@ if sim == 1:
     dmod0  = 20.63  #dmod to Hercules
     ferr = 1.0
 
-    imftype = 'salpeter'
+    imftype = 'chabrier'
 
     #values for parameter to vary - same as parameter to recover
     if imftype == 'salpeter': 
         imftype_in = 'salpeter'
         imftype_out = 'salpeter'
-        alpha_in = 1.1
+        alpha_in = 2.35
         #param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6]) # alpha_out_arr
         param_out_arr = np.array([0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5]) # alpha_out_arr
         
@@ -45,7 +45,7 @@ if sim == 1:
     if imftype == 'chabrier': 
         imftype_in = 'chabrier'
         imftype_out = 'chabrier'
-        mc_in = 0.08  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        mc_in = 0.30  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
         sigmac_in = 0.69  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
         sigmac_out = 0.69  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
         #maximize likelihood over mc
