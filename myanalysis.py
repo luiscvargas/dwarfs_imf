@@ -6,6 +6,8 @@ from mywrangle import *
 
 def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inmagarr2,inmagerrarr2,system,sysmag1,sysmag2,**kwargs):
 
+   rejection_sampling = 0
+
    testing = 0 #testing = 1 in stand alone test_simulate_cmd.py code
 
    if 'testing' in kwargs.keys():
@@ -81,7 +83,11 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        
 
    #Find min and max in dN/dM in order to set limits in y-axis for random number
-   #generator
+   #generator, in practice do not need to multiply by d(mass) within f_salpeter,
+   #f_chabrier, f_kroupa here, as all we want is a relative number of stars per dM,
+   #and dM is constant by construction.
+
+   #Begin rejection sampling
 
    xdum = np.arange(mass_min,mass_max,0.0001)
    if kwargs['imftype'] == 'salpeter':
@@ -91,12 +97,36 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    elif kwargs['imftype'] == 'kroupa':
        ydum = f_kroupa(xdum,mass_min,mass_max,alpha1_,alpha2_)
 
+   ydum_cumul = np.cumsum(ydum)
+
+   ydum_cumul = ydum_cumul / max(ydum_cumul)
+
+   #Invert cumulative function
+
+   fcumul = interpolate.splrep(xdum,ydum_cumul)
+   gcumul = interpolate.splrep(ydum_cumul,xdum)
+
+   xtmp_fwd = np.arange(mass_min,mass_max,0.01)
+   ytmp_fwd = interpolate.splev(xtmp_fwd,fcumul)
+   xtmp_inv = np.arange(0.,1.,.01)
+   ytmp_inv = interpolate.splev(xtmp_inv,gcumul)
+   
    if testing == 1:
-       plt.subplot(1,2,1)
+       plt.subplot(2,2,1)
        plt.plot(xdum,ydum,color='b',ls='-')
        plt.axis([mass_min,mass_max,0.0,ydum.max()])
        plt.xlabel(r"$M$") ; plt.ylabel(r"$dN/dM$")
-       plt.subplot(1,2,2)
+       plt.subplot(2,2,2)
+       plt.plot(xdum,ydum_cumul,color='b',ls='-')
+       plt.plot(xtmp_fwd,ytmp_fwd,'go')
+       plt.axis([mass_min,mass_max,0.0,1.0])
+       plt.xlabel(r"$M$") ; plt.ylabel(r"$Integral dN/dM$")
+       plt.subplot(2,2,3)
+       plt.plot(ydum_cumul,xdum,color='b',ls='-')
+       plt.plot(xtmp_inv,ytmp_inv,'go')
+       plt.axis([0.0,1.0,mass_min,mass_max])
+       plt.xlabel(r"$M$") ; plt.ylabel(r"$Integral dN/dM$")
+       plt.subplot(2,2,4)
        plt.loglog(xdum,ydum,color='b',ls='-',basex=10,basey=10)
        plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
        plt.xlabel(r"log\,$M$") ; plt.ylabel(r"log\,$dN/dM$")
@@ -113,46 +143,79 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    else:
        np.random.seed(seed=12345)
 
-   #Define limits of masses as lowest isochrone mass and highest isochrone mass *within* the mass cuts
-   #specified as input args. If I use instead those input args directly, some points will be slightly
-   #outside of range of isochrone masses, as mass_min < M_iso < mass_max is set in read_darth_iso, 
-   #causing the spline interpolator to crash later on.
+   if (rejection_sampling == 1 or testing == 1):
 
-   #xrantmparr = np.random.random_sample(nstars*200) * (iso['mass'].max() - iso['mass'].min()) + iso['mass'].min()
-   #yrantmparr = np.random.random_sample(nstars*15) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
-   xrantmparr = np.random.random_sample(nstars*15) * (mass_max - mass_min) + mass_min   
-   yrantmparr = np.random.random_sample(nstars*15) * 1.02*ydum.max() 
-   #yrantmparr = np.random.random_sample(nstars*15) * 1.05*(ydum.max() - ydum.min()) + ydum.min()
+       #Define limits of masses as lowest isochrone mass and highest isochrone mass *within* the mass cuts
+       #specified as input args. If I use instead those input args directly, some points will be slightly
+       #outside of range of isochrone masses, as mass_min < M_iso < mass_max is set in read_darth_iso, 
+       #causing the spline interpolator to crash later on.
 
-   xranarr = np.arange(nstars)*0.0
-   yranarr = np.arange(nstars)*0.0
+       xrantmparr = np.random.random_sample(nstars*15) * (mass_max - mass_min) + mass_min   
+       yrantmparr = np.random.random_sample(nstars*15) * 1.02*ydum.max() 
 
-   #Now find the pairs (x,y) of simulated data that fall under envelope of dN/dM - M relation.
-   count = 0
-   for i,xrantmp in enumerate(xrantmparr):
-       #print count
-       if count == nstars: break
-       idx = np.abs(xdum - xrantmp).argmin()
-       #if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
-            #should xdum[idx] go here, or should xrantmp? 
-       if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] >= mass_min) & (xdum[idx] < mass_max):
-           xranarr[count] = xrantmparr[i]
-           yranarr[count] = yrantmparr[i]
-           #print count,xrantmparr[i],yrantmparr[i],xranarr[count],yranarr[count]
-           count += 1
-       else:
-           pass
+       xranarr_rej = np.arange(nstars)*0.0
+       yranarr_rej = np.arange(nstars)*0.0
 
-   if len(yranarr[yranarr > 0.0]) < nstars:
-       print "Need to generate more samples!"
+       #Now find the pairs (x,y) of simulated data that fall under envelope of dN/dM - M relation.
+       count = 0
+       for i,xrantmp in enumerate(xrantmparr):
+           #print count
+           if count == nstars: break
+           idx = np.abs(xdum - xrantmp).argmin()
+           #if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
+           #should xdum[idx] go here, or should xrantmp? 
+           if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] >= mass_min) & (xdum[idx] < mass_max):
+               xranarr_rej[count] = xrantmparr[i]
+               yranarr_rej[count] = yrantmparr[i]
+               #print count,xrantmparr[i],yrantmparr[i],xranarr[count],yranarr[count]
+               count += 1
+           else:
+               pass
+
+       if len(yranarr_rej[yranarr_rej > 0.0]) < nstars:
+           print "Need to generate more samples!"
+           raise SystemExit
+
+   ############End rejection sampling
+
+   ##Begin transformation method
+
+   if (rejection_sampling == 0 or testing == 1):
+       #note that we now specify Y = U[0,1] instead of X in case of transformation method
+       #gcumul is inverse of CDF of dN/dM integrated from M_min to M for a given M. 
+       yranarr_transform = np.random.random_sample(nstars)
+       xranarr_transform = interpolate.splev(yranarr_transform,gcumul)
+
+   if rejection_sampling == 0: 
+       mc_mass_arr = xranarr_transform
+   elif rejection_sampling == 1:
+       mc_mass_arr = xranarr_rej
+   else: 
+       print "choose rejection sampling or transformation method!"
        raise SystemExit
 
    if testing == 1:
+       plt.subplot(2,2,1)
        plt.scatter(xrantmparr,yrantmparr,s=1,c='k',marker='.')
-       plt.scatter(xranarr,yranarr,s=6,c='r',marker='o')
+       plt.scatter(xranarr_rej,yranarr_rej,s=6,c='r',marker='o')
        plt.plot(xdum,ydum,color='b',ls='-')
        plt.axis([mass_min,mass_max,0.0,ydum.max()])
        plt.xlabel(r"$M$") ; plt.ylabel(r"$dN/dM$")
+       plt.subplot(2,2,2)
+       plt.scatter(xranarr_rej,yranarr_rej,s=6,c='b',marker='o')
+       plt.plot(xdum,ydum,color='b',ls='-')
+       plt.axis([mass_min,mass_max,0.0,ydum.max()])
+       plt.xlabel(r"$M$") ; plt.ylabel(r"$dN/dM$")
+       plt.subplot(2,2,3)
+       n_rej , mass_rej = np.histogram(xranarr_rej,bins=20)
+       n_transform , mass_transform = np.histogram(xranarr_transform,bins=20)
+       mass_rej = (mass_rej[1:] + mass_rej[:-1])/2.
+       mass_transform = (mass_transform[1:] + mass_transform[:-1])/2.
+       plt.plot(mass_rej,n_rej,c='b',marker='s')
+       plt.plot(mass_transform,n_transform,c='g',marker='o')
+       plt.axis([mass_min,mass_max,0.0,1.1*n_rej.max()])
+       plt.xlabel(r"$M$") ; plt.ylabel(r"$dN$")
+       #plt.subplot(2,2,4)
        plt.show()
 
    #Interpolate isochrone magnitude-mass relation
@@ -164,9 +227,9 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    f2 = interpolate.splrep(iso['mass'][isort],iso[sysmag2][isort]+dist_mod)
 
    #Assign magnitudes to each star based on their mass and the mass-magnitude relation calculated above.
-   mag1ranarr_0 = interpolate.splev(xranarr,f1)
-   mag2ranarr_0 = interpolate.splev(xranarr,f2)  #band 2 = for system=wfpc2
-   der_mag2ranarr_0 = interpolate.splev(xranarr,f2,der=1)  #band 2 = for system=wfpc2
+   mag1ranarr_0 = interpolate.splev(mc_mass_arr,f1)
+   mag2ranarr_0 = interpolate.splev(mc_mass_arr,f2)  #band 2 = for system=wfpc2
+   der_mag2ranarr_0 = interpolate.splev(mc_mass_arr,f2,der=1)  #band 2 = for system=wfpc2
    colorranarr_0  = mag1ranarr_0 - mag2ranarr_0
 
    #Initialize data magnitude arrays which will include photometric uncertainties.
@@ -190,8 +253,8 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    if testing == 1:   
        plt.subplot(3,2,1) 
        plt.plot(iso[sysmag2]+dist_mod,iso['mass'],ls='-',color='blue')  #without [isort]
-       plt.scatter(mag2ranarr,xranarr,s=1,marker='.',color='red')
-       plt.axis([24.5,mag2ranarr.max(),xranarr.min()-.02,xranarr.max()+.02])
+       plt.scatter(mag2ranarr,mc_mass_arr,s=1,marker='.',color='red')
+       plt.axis([24.5,mag2ranarr.max(),mc_mass_arr.min()-.02,mc_mass_arr.max()+.02])
 
        plt.subplot(3,2,2) 
        plt.scatter(mag2ranarr_0,der_mag2ranarr_0,color='green',marker='.',s=1)
@@ -224,15 +287,15 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        plt.axis([24.5,mag2ranarr.max(),.01*max(n_r),2*max(n_r)])
 
        ax = plt.subplot(3,2,6) 
-       nbins = int((xranarr.max()-xranarr.min())/0.025)
-       n_r , rhist = np.histogram(xranarr,bins=nbins)
+       nbins = int((mc_mass_arr.max()-mc_mass_arr.min())/0.025)
+       n_r , rhist = np.histogram(mc_mass_arr,bins=nbins)
        rhist_err = np.sqrt(n_r)
        ax.set_yscale("log", nonposy='clip')
        ax.set_xscale("log", nonposx='clip')
        plt.errorbar(rhist[:-1],n_r,yerr=rhist_err,color='k',marker='o',markersize=1)
        plt.xlabel(r'log\,M')
        plt.ylabel(r'$dN$')
-       plt.axis([xranarr.min(),xranarr.max(),.2*max(n_r),1.5*max(n_r)])
+       plt.axis([mc_mass_arr.min(),mc_mass_arr.max(),.2*max(n_r),1.5*max(n_r)])
        plt.plot([0.5,0.5],[.2*max(n_r),1.5*max(n_r)],color='g',ls='-.')
        plt.plot([0.6,0.6],[.2*max(n_r),1.5*max(n_r)],color='magenta',ls='-.')
        plt.plot([0.4,0.4],[.2*max(n_r),1.5*max(n_r)],color='orange',ls='-.')
