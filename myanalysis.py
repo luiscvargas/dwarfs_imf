@@ -8,7 +8,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    rejection_sampling = 0
 
-   testing = 0 #testing = 1 in stand alone test_simulate_cmd.py code
+   testing = 1 #testing = 1 in stand alone test_simulate_cmd.py code
 
    if 'testing' in kwargs.keys():
        if kwargs['testing'] == True: testing = 1
@@ -87,8 +87,6 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    #f_chabrier, f_kroupa here, as all we want is a relative number of stars per dM,
    #and dM is constant by construction.
 
-   #Begin rejection sampling
-
    xdum = np.arange(mass_min,mass_max,0.0001)
    if kwargs['imftype'] == 'salpeter':
        ydum = f_salpeter(xdum,mass_min,mass_max,alpha_)
@@ -143,6 +141,8 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    else:
        np.random.seed(seed=12345)
 
+   ############Begin rejection sampling
+
    if (rejection_sampling == 1 or testing == 1):
 
        #Define limits of masses as lowest isochrone mass and highest isochrone mass *within* the mass cuts
@@ -187,9 +187,9 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        xranarr_transform = interpolate.splev(yranarr_transform,gcumul)
 
    if rejection_sampling == 0: 
-       mc_mass_arr = xranarr_transform
+       mc_mass_arr_pri = xranarr_transform
    elif rejection_sampling == 1:
-       mc_mass_arr = xranarr_rej
+       mc_mass_arr_pri = xranarr_rej
    else: 
        print "choose rejection sampling or transformation method!"
        raise SystemExit
@@ -218,6 +218,72 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        #plt.subplot(2,2,4)
        plt.show()
 
+   #######Add binary fraction
+
+   if 'fb' in kwargs.keys():
+       fb = kwargs['fb']
+   else:
+       fb = 0.6  #temporary set to 0.0 later
+
+   if fb <= 0.0:
+       mc_mass_arr_tot = mc_mass_arr_pri
+
+   elif fb > 0.0: 
+
+       #create a set of secondary masses and total masses
+  
+       mc_mass_arr_sec = np.zeros(len(mc_mass_arr_pri))
+       mc_mass_arr_tot = np.zeros(len(mc_mass_arr_pri))
+
+       if 'alpha_sec' in kwargs.keys():
+           alpha_sec = kwargs['alpha_sec']
+       else: 
+           print 'need to specify dN/dM2 in case of non-zero binary fraction'
+           raise SystemExit
+
+       fb_arr = np.random.random(len(mc_mass_arr_pri))
+
+       mass_min_sec = iso['mass'].min()  #mass_min_sec must be > mass_min_iso in order to find a matching magnitude
+
+       for imass,mass_pri in enumerate(mc_mass_arr_pri):
+ 
+           if mass_pri <= mass_min_sec + 0.005: 
+               print "mass_pri = ",mass_pri
+               print "mass of primary too close to lower isochrone mass limit"
+               print "no secondary assigned", "fb random value = ",fb_arr[imass]
+               raise SystemExit
+
+           if fb_arr[imass] <= fb:
+ 
+            xdum = np.arange(mass_min_sec,mass_pri,0.0001)
+            ydum = xdum ** (-1.0*alpha_sec)
+            ydum = ydum / max(ydum)
+
+            while 1:
+               
+                #Calculate random deviates within range of masses with non-zero dN/dM2, 
+                #max mass is mass of EACH respective primary, NOT maximum mass of all stars 
+                #in sample.
+                xtmp = np.random.random_sample(1) * (mass_pri - mass_min) + mass_min
+                ytmp = np.random.random_sample(1) * 1.02 * max(ydum)
+                w = np.argmin(abs(xtmp - xdum))
+                if ytmp <= ydum[w]: break
+
+            #Assign non-zero masses to secondary mass array, and add masses for total mass array
+            mc_mass_arr_sec[imass] = xtmp
+            mc_mass_arr_tot[imass] = xtmp + mass_pri
+
+       if testing == 1: 
+           #plot distribution of secondary to primary masses - title has fraction of binary systems to total # of systems
+           qarr = mc_mass_arr_sec / mc_mass_arr_pri
+           frac, qbins = np.histogram(qarr[qarr > 0.0],bins=20)
+           n_single = len(qarr[qarr <= 0.0])
+           plt.title("Input fb = "+str(fb)+" ; Output Binary = "+str((float(len(mc_mass_arr_pri)-n_single))/float(len(mc_mass_arr_pri))))
+           plt.bar(qbins[:-1],frac,qbins[1]-qbins[0],edgecolor='k')
+           plt.show()
+
+   raise SystemExit
+
    #Interpolate isochrone magnitude-mass relation
    isort = np.argsort(iso['mass'])  #! argsort = returns indices for sorted array, sort=returns sorted array
    #if testing == 1:
@@ -227,9 +293,9 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    f2 = interpolate.splrep(iso['mass'][isort],iso[sysmag2][isort]+dist_mod)
 
    #Assign magnitudes to each star based on their mass and the mass-magnitude relation calculated above.
-   mag1ranarr_0 = interpolate.splev(mc_mass_arr,f1)
-   mag2ranarr_0 = interpolate.splev(mc_mass_arr,f2)  #band 2 = for system=wfpc2
-   der_mag2ranarr_0 = interpolate.splev(mc_mass_arr,f2,der=1)  #band 2 = for system=wfpc2
+   mag1ranarr_0 = interpolate.splev(mc_mass_arr_tot,f1)
+   mag2ranarr_0 = interpolate.splev(mc_mass_arr_tot,f2)  #band 2 = for system=wfpc2
+   der_mag2ranarr_0 = interpolate.splev(mc_mass_arr_tot,f2,der=1)  #band 2 = for system=wfpc2
    colorranarr_0  = mag1ranarr_0 - mag2ranarr_0
 
    #Initialize data magnitude arrays which will include photometric uncertainties.
