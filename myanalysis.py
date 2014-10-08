@@ -9,9 +9,15 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    rejection_sampling = 0
 
    testing = 1 #testing = 1 in stand alone test_simulate_cmd.py code
+   rc('text', usetex=True)
+   rc('font', family='serif')
 
    if 'testing' in kwargs.keys():
-       if kwargs['testing'] == True: testing = 1
+       if kwargs['testing'] == True: 
+           testing = 1
+           rc('text', usetex=True)
+           rc('font', family='serif')
+
 
    if 'imftype' not in kwargs.keys(): raise SystemExit
 
@@ -264,7 +270,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
                 #Calculate random deviates within range of masses with non-zero dN/dM2, 
                 #max mass is mass of EACH respective primary, NOT maximum mass of all stars 
                 #in sample.
-                xtmp = np.random.random_sample(1) * (mass_pri - mass_min) + mass_min
+                xtmp = np.random.random_sample(1) * (mass_pri - mass_min_sec) + mass_min_sec
                 ytmp = np.random.random_sample(1) * 1.02 * max(ydum)
                 w = np.argmin(abs(xtmp - xdum))
                 if ytmp <= ydum[w]: break
@@ -275,11 +281,27 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
        if testing == 1: 
            #plot distribution of secondary to primary masses - title has fraction of binary systems to total # of systems
+           plt.subplot(1,3,1) 
            qarr = mc_mass_arr_sec / mc_mass_arr_pri
            frac, qbins = np.histogram(qarr[qarr > 0.0],bins=20)
            n_single = len(qarr[qarr <= 0.0])
-           plt.title("Input fb = "+str(fb)+" ; Output Binary = "+str((float(len(mc_mass_arr_pri)-n_single))/float(len(mc_mass_arr_pri))))
+           plt.title(r"Input fb = "+str(fb)+" ; Input alpha sec = "+str(alpha_sec))
+           plt.axis([0.0,1.0,0.0,1.1*max(frac)])
+           plt.xlabel(r'$q$ = $M_{2}/M_{1}$')
+           plt.ylabel(r'N')
+           plt.text(0.05,0.9*max(frac),"Output Binary = "+"{0:<5.3f}".format((float(len(mc_mass_arr_pri)-n_single))/float(len(mc_mass_arr_pri))))
            plt.bar(qbins[:-1],frac,qbins[1]-qbins[0],edgecolor='k')
+           plt.subplot(1,3,2) 
+           n_sec_bins, mass_sec_bins = np.histogram(mc_mass_arr_sec[qarr > 0.0],bins=np.arange(0.,1.,0.05))
+           n_pri_bins, mass_pri_bins = np.histogram(mc_mass_arr_pri[qarr > 0.0],bins=np.arange(0.,1.,0.05))
+           plt.bar(mass_pri_bins[:-1],n_pri_bins,mass_pri_bins[1]-mass_pri_bins[0],edgecolor='k',alpha=0.5,color='r',label='$M_{1}$')
+           plt.bar(mass_sec_bins[:-1],n_sec_bins,mass_pri_bins[1]-mass_pri_bins[0],edgecolor='k',alpha=0.5,color='b',label='$M_{2}$')
+           plt.legend(loc='upper right')
+           plt.xlabel(r"$M_{1},\, M_{2}$")
+           plt.subplot(1,3,3) 
+           plt.scatter(mc_mass_arr_pri[qarr > 0.0],mc_mass_arr_sec[qarr > 0.0],marker='o',s=2,color='green')
+           plt.xlabel(r"$M_{1}$")
+           plt.ylabel(r"$M_{2}$")
            plt.show()
 
    raise SystemExit
