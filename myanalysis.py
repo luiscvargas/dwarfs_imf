@@ -134,7 +134,6 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        plt.loglog(xdum,ydum,color='b',ls='-',basex=10,basey=10)
        plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
        plt.xlabel(r"log\,$M$") ; plt.ylabel(r"log\,$dN/dM$")
-       #plt.savefig(os.getenv('HOME')+'/Desktop/mass_dndm_function.png',bbox_inches='tight')
        plt.show()
 
    #Generate random data points in 2D and stop when 100 points are within 

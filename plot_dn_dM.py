@@ -93,7 +93,6 @@ if 1:
     plt.loglog(xdum,ydum3,color='b',ls='-',basex=10,basey=10)
     plt.axis([mass_min,mass_max,ydum.min(),ydum.max()])
     plt.xlabel(r"log\,$M$") ; plt.ylabel(r"log\,$dN/dM$")
-    #plt.savefig(os.getenv('HOME')+'/Desktop/mass_dndm_function.png',bbox_inches='tight')
     plt.show()
 
 #############################################

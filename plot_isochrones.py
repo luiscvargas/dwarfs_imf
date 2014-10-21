@@ -92,7 +92,6 @@ def read_phot(photfile,**kwargs):
             plt.ylabel(r'$r_0$')
             plt.xlabel(r'$N_{cumul}$')
             plt.axis([-2+dmod0,6+dmod0,0,1.1])
-            #plt.savefig(os.getenv('HOME')+'/Desktop/select_region.png',bbox_inches='tight')
             plt.show()
 
         if 'cuts' in kwargs.keys(): 
@@ -325,8 +324,6 @@ if system == 'sdss': plt.errorbar(-0.2+0.0*magerrmean,magbin,xerr=magerrmean,yer
 
 plt.scatter(phot_raw['col'],phot_raw['mag'],color='k',marker='.',s=1,alpha=0.5)
 plt.scatter(phot['col'],phot['mag'],color='orange',marker='o',s=2,alpha=0.6)
-
-#plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
 
 plt.show()
 

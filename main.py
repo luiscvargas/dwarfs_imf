@@ -281,7 +281,6 @@ if imftype == 'kroupa'  : plt.plot([alpha1_in,alpha1_in],[ymin,ymax],ls='..',lw=
 plt.axis([xmin,xmax,ymin,ymax])
 plt.xlabel(r'Parameter')
 plt.ylabel(r'$-$ln\,$L$ + $k$')
-#plt.savefig(os.getenv('HOME')+'/Desktop/alpha_lnL.png',bbox_inches='tight')
 #assumes that for chabrier, it is Mc that is being fit, and for kroupa, alpha1
 if imftype == 'salpeter': plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit to Salpeter IMF')
 if imftype == 'chabrier': plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit to Chabrier IMF')
