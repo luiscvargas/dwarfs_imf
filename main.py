@@ -31,7 +31,7 @@ if sim == 1:
     dmod0  = 20.63  #dmod to Hercules
     ferr = 1.0
 
-    imftype = 'chabrier'
+    imftype = 'salpeter'
 
     #values for parameter to vary - same as parameter to recover
     if imftype == 'salpeter': 
@@ -105,7 +105,7 @@ if sim == 1:
         nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
             imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
         phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-            system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+            system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed,fb=0.25,alpha_sec=0.4)  #1.5 bc of additional
     if imftype_in == 'chabrier':
         nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
             imftype='chabrier',mc=mc_in,sigmac=sigmac_in,mass_min_global=mass_min_global)
