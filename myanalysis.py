@@ -229,7 +229,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    if 'fb' in kwargs.keys():
        fb = kwargs['fb']
    else:
-       fb = 0.6  #temporary set to 0.0 later
+       fb = -1.0 
 
    if fb <= 0.0:
        mc_mass_arr_tot = mc_mass_arr_pri
@@ -261,23 +261,28 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
            if fb_arr[imass] <= fb:
  
-            xdum = np.arange(mass_min_sec,mass_pri,0.0001)
-            ydum = xdum ** (-1.0*alpha_sec)
-            ydum = ydum / max(ydum)
+               xdum = np.arange(mass_min_sec,mass_pri,0.0001)
+               ydum = xdum ** (-1.0*alpha_sec)
+               ydum = ydum / max(ydum)
 
-            while 1:
+               while 1:
                
-                #Calculate random deviates within range of masses with non-zero dN/dM2, 
-                #max mass is mass of EACH respective primary, NOT maximum mass of all stars 
-                #in sample.
-                xtmp = np.random.random_sample(1) * (mass_pri - mass_min_sec) + mass_min_sec
-                ytmp = np.random.random_sample(1) * 1.02 * max(ydum)
-                w = np.argmin(abs(xtmp - xdum))
-                if ytmp <= ydum[w]: break
+                   #Calculate random deviates within range of masses with non-zero dN/dM2, 
+                   #max mass is mass of EACH respective primary, NOT maximum mass of all stars 
+                   #in sample.
+                   xtmp = np.random.random_sample(1) * (mass_pri - mass_min_sec) + mass_min_sec
+                   ytmp = np.random.random_sample(1) * 1.02 * max(ydum)
+                   w = np.argmin(abs(xtmp - xdum))
+                   if ytmp <= ydum[w]: break
 
-            #Assign non-zero masses to secondary mass array, and add masses for total mass array
-            mc_mass_arr_sec[imass] = xtmp
-            mc_mass_arr_tot[imass] = xtmp + mass_pri
+               #Assign non-zero masses to secondary mass array, and add masses for total mass array
+               mc_mass_arr_sec[imass] = xtmp
+               mc_mass_arr_tot[imass] = xtmp + mass_pri
+
+           else:
+               mc_mass_arr_sec[imass] = -1.0
+               mc_mass_arr_tot[imass] = mass_pri
+   
 
        if testing == 1: 
            #plot distribution of secondary to primary masses - title has fraction of binary systems to total # of systems
@@ -304,7 +309,7 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
            plt.ylabel(r"$M_{2}$")
            plt.show()
 
-   raise SystemExit
+   ##########Begin assignment of magnitudes to individual mock stars (include effect of binaries)
 
    #Interpolate isochrone magnitude-mass relation
    isort = np.argsort(iso['mass'])  #! argsort = returns indices for sorted array, sort=returns sorted array
@@ -314,10 +319,63 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    f1 = interpolate.splrep(iso['mass'][isort],iso[sysmag1][isort]+dist_mod)
    f2 = interpolate.splrep(iso['mass'][isort],iso[sysmag2][isort]+dist_mod)
 
+   #Assign magnitudes to individual components (primary+secondary)
+
    #Assign magnitudes to each star based on their mass and the mass-magnitude relation calculated above.
-   mag1ranarr_0 = interpolate.splev(mc_mass_arr_tot,f1)
-   mag2ranarr_0 = interpolate.splev(mc_mass_arr_tot,f2)  #band 2 = for system=wfpc2
-   der_mag2ranarr_0 = interpolate.splev(mc_mass_arr_tot,f2,der=1)  #band 2 = for system=wfpc2
+   #Get magnitudes for primary component
+   mag1ranarr_pri_0 = interpolate.splev(mc_mass_arr_pri,f1)
+   mag2ranarr_pri_0 = interpolate.splev(mc_mass_arr_pri,f2)  #band 2 = for system=wfpc2
+   der_mag2ranarr_0 = interpolate.splev(mc_mass_arr_pri,f2,der=1)  #band 2 = for system=wfpc2
+   if fb > 0:
+       #Get magnitudes for secondary component if fb > 0, and then compute magnitudes combining both
+       #components
+       #Only do this for the fraction of stars with non-zero secondary magnitudes
+       mag1ranarr_sec_0 = np.zeros(len(mc_mass_arr_sec))
+       mag2ranarr_sec_0 = np.zeros(len(mc_mass_arr_sec))
+       mag1ranarr_0 = np.zeros(len(mc_mass_arr_sec))
+       mag2ranarr_0 = np.zeros(len(mc_mass_arr_sec))
+       der_mag2ranarr__sec_0 = np.zeros(len(mc_mass_arr_sec))   #band 2 = for system=wfpc2
+       mag1ranarr_sec_0[mc_mass_arr_sec > 0.0] = interpolate.splev(mc_mass_arr_sec[mc_mass_arr_sec > 0.0],f1)
+       mag2ranarr_sec_0[mc_mass_arr_sec > 0.0] = interpolate.splev(mc_mass_arr_sec[mc_mass_arr_sec > 0.0],f2)  
+             #band 2 = for system=wfpc2
+       der_mag2ranarr__sec_0[mc_mass_arr_sec > 0.0] = interpolate.splev(mc_mass_arr_sec[mc_mass_arr_sec > 0.0],f2,der=1)  #band 2 = for system=wfpc2
+       mag1ranarr_0[mc_mass_arr_sec <= 0.0] = mag1ranarr_pri_0[mc_mass_arr_sec <= 0.0]
+       mag2ranarr_0[mc_mass_arr_sec <= 0.0] = mag2ranarr_pri_0[mc_mass_arr_sec <= 0.0]
+       gamma1 = 1. + 10.**(0.4*(mag1ranarr_pri_0[mc_mass_arr_sec > 0.0] - mag1ranarr_sec_0[mc_mass_arr_sec > 0.0]))
+       gamma2 = 1. + 10.**(0.4*(mag2ranarr_pri_0[mc_mass_arr_sec > 0.0] - mag2ranarr_sec_0[mc_mass_arr_sec > 0.0]))
+       mag1ranarr_0[mc_mass_arr_sec > 0.0] = mag1ranarr_pri_0[mc_mass_arr_sec > 0.0] - 2.5*np.log10(gamma1)
+       mag2ranarr_0[mc_mass_arr_sec > 0.0] = mag2ranarr_pri_0[mc_mass_arr_sec > 0.0] - 2.5*np.log10(gamma2)
+   elif fb <=0:
+       #Assign primary component magnitude to "total", as no secondary component present  
+       mag1ranarr_0 = mag1ranarr_pri_0 
+       mag2ranarr_0 = mag2ranarr_pri_0 
+
+       print min(mag1ranarr_pri_0),max(mag1ranarr_pri_0)
+       #raise SystemExit
+
+   if testing == 1: 
+       plt.subplot(2,2,1)
+       #plt.scatter(mag1ranarr_pri_0,mag1ranarr_sec_0,marker='o',s=2,c='k')
+       plt.scatter(mag1ranarr_pri_0[mc_mass_arr_sec > 0.0],mag1ranarr_sec_0[mc_mass_arr_sec > 0.0],marker='o',s=3.5,c='b')
+       plt.xlabel(r"$mag_{1} (Primary)$"); plt.ylabel(r"$mag_{1} (Secondary)$")
+       plt.axis([min(mag1ranarr_pri_0)-.5,max(mag1ranarr_pri_0)+.5,min(mag1ranarr_pri_0)-.5,max(mag1ranarr_pri_0)+4.])
+       plt.subplot(2,2,2)
+       #plt.scatter(mag2ranarr_pri_0,mag2ranarr_sec_0,marker='o',s=2,c='k')
+       plt.scatter(mag2ranarr_pri_0[mc_mass_arr_sec > 0.0],mag2ranarr_sec_0[mc_mass_arr_sec > 0.0],marker='o',s=3.5,c='r')
+       plt.xlabel(r"$mag_{2} (Primary)$"); plt.ylabel(r"$mag_{2} (Secondary)$")
+       plt.axis([min(mag2ranarr_pri_0)-.5,max(mag2ranarr_pri_0)+.5,min(mag2ranarr_pri_0)-.5,max(mag2ranarr_pri_0)+4.])
+       plt.subplot(2,2,3)
+       plt.scatter(mag1ranarr_pri_0,mag1ranarr_0-mag1ranarr_pri_0,marker='o',s=2,c='g')
+       plt.scatter(mag1ranarr_pri_0[mc_mass_arr_sec > 0.0],mag1ranarr_0[mc_mass_arr_sec > 0.0]-mag1ranarr_pri_0[mc_mass_arr_sec > 0.0],marker='o',s=2,c='r')
+       plt.xlabel(r"$mag_{1} (Primary)$"); plt.ylabel(r"$mag_{1} (Combined) - mag_{1} (Primary)$")
+       plt.axis([min(mag1ranarr_pri_0)-.5,max(mag1ranarr_pri_0)+.5,-2,1])
+       plt.subplot(2,2,4)
+       plt.scatter(mag2ranarr_pri_0,mag2ranarr_0-mag2ranarr_pri_0,marker='o',s=2,c='g')
+       plt.scatter(mag2ranarr_pri_0[mc_mass_arr_sec > 0.0],mag2ranarr_0[mc_mass_arr_sec > 0.0]-mag2ranarr_pri_0[mc_mass_arr_sec > 0.0],marker='o',s=2,c='r')
+       plt.xlabel(r"$mag_{2} (Primary)$"); plt.ylabel(r"$mag_{2} (Combined) - mag_{2} (Primary)$")
+       plt.axis([min(mag2ranarr_pri_0)-.5,max(mag2ranarr_pri_0)+.5,-2,1])
+       plt.show()
+
    colorranarr_0  = mag1ranarr_0 - mag2ranarr_0
 
    #Initialize data magnitude arrays which will include photometric uncertainties.
@@ -341,12 +399,16 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
    if testing == 1:   
        plt.subplot(3,2,1) 
        plt.plot(iso[sysmag2]+dist_mod,iso['mass'],ls='-',color='blue')  #without [isort]
-       plt.scatter(mag2ranarr,mc_mass_arr,s=1,marker='.',color='red')
-       plt.axis([24.5,mag2ranarr.max(),mc_mass_arr.min()-.02,mc_mass_arr.max()+.02])
+       plt.scatter(mag2ranarr,mc_mass_arr_pri,s=1,marker='o',color='green')
+       plt.scatter(mag2ranarr,mc_mass_arr_tot,s=1,marker='.',color='red')
+       plt.axis([24.5,mag2ranarr.max(),mc_mass_arr_tot.min()-.02,mc_mass_arr_tot.max()+.02])
+       plt.xlabel(r"$F814W$")
+       plt.ylabel(r"$M_{tot}$")
 
        plt.subplot(3,2,2) 
        plt.scatter(mag2ranarr_0,der_mag2ranarr_0,color='green',marker='.',s=1)
        plt.axis([24.5,mag2ranarr.max(),-40,der_mag2ranarr_0.max()+5])
+       plt.xlabel(r"$F814W$")
 
        plt.subplot(3,2,3) 
        plt.plot(isocol,isomag,ls='-',color='red',lw=2)
@@ -375,15 +437,15 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        plt.axis([24.5,mag2ranarr.max(),.01*max(n_r),2*max(n_r)])
 
        ax = plt.subplot(3,2,6) 
-       nbins = int((mc_mass_arr.max()-mc_mass_arr.min())/0.025)
-       n_r , rhist = np.histogram(mc_mass_arr,bins=nbins)
+       nbins = int((mc_mass_arr_tot.max()-mc_mass_arr_tot.min())/0.025)
+       n_r , rhist = np.histogram(mc_mass_arr_tot,bins=nbins)
        rhist_err = np.sqrt(n_r)
        ax.set_yscale("log", nonposy='clip')
        ax.set_xscale("log", nonposx='clip')
        plt.errorbar(rhist[:-1],n_r,yerr=rhist_err,color='k',marker='o',markersize=1)
-       plt.xlabel(r'log\,M')
+       plt.xlabel(r'log\,M_{tot}')
        plt.ylabel(r'$dN$')
-       plt.axis([mc_mass_arr.min(),mc_mass_arr.max(),.2*max(n_r),1.5*max(n_r)])
+       plt.axis([mc_mass_arr_tot.min(),mc_mass_arr_tot.max(),.2*max(n_r),1.5*max(n_r)])
        plt.plot([0.5,0.5],[.2*max(n_r),1.5*max(n_r)],color='g',ls='-.')
        plt.plot([0.6,0.6],[.2*max(n_r),1.5*max(n_r)],color='magenta',ls='-.')
        plt.plot([0.4,0.4],[.2*max(n_r),1.5*max(n_r)],color='orange',ls='-.')
@@ -570,7 +632,6 @@ def estimate_required_n(nrequired,age,feh,afe,system,sysmag2,dmod0,magmin,magmax
         raise SystemExit
     if mass_max_global < mass_max_fit: 
         print "Max Mass (LF) > Max Mass (Mag cut)",mass_max_global,mass_max_fit
-
         raise SystemExit
 
     #and check that they are between the range of isochrone masses present
