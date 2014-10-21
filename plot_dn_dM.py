@@ -65,6 +65,21 @@ elif imftype == 'kroupa':
     ydum2 = f_kroupa(xdum,mass_min,mass_max,alpha1_-0.8,alpha2_)
     ydum3 = f_kroupa(xdum,mass_min,mass_max,alpha1_-1.6,alpha2_)
 
+ydum_cumul = np.cumsum(ydum)
+
+ydum_cumul = ydum_cumul / max(ydum_cumul)
+
+#Invert cumulative function
+
+fcumul = interpolate.splrep(xdum,ydum_cumul)
+gcumul = interpolate.splrep(ydum_cumul,xdum)
+
+xtmp_fwd = np.arange(mass_min,mass_max,0.01)
+ytmp_fwd = interpolate.splev(xtmp_fwd,fcumul)
+xtmp_inv = np.arange(0.,1.,.01)
+ytmp_inv = interpolate.splev(xtmp_inv,gcumul)
+
+
 if 1:
     plt.subplot(1,2,1)
     plt.plot(xdum,ydum,color='r',ls='-')
@@ -86,24 +101,35 @@ if 1:
 #First generate very large array in x and y, so that hopefully there will be at least nstars
 #that fall under dN/dM - M relation.
 np.random.seed(seed=12345)
+
+#Do with rejection sampling
+
 xrantmparr = np.random.random_sample(nstars*15) * (mass_max - mass_min) + mass_min   
 yrantmparr = np.random.random_sample(nstars*15) * 1.02*ydum.max() 
-xranarr = np.arange(nstars)*0.0
-yranarr = np.arange(nstars)*0.0
 
+xranarr_rej = np.arange(nstars)*0.0
+yranarr_rej = np.arange(nstars)*0.0
+
+#Now find the pairs (x,y) of simulated data that fall under envelope of dN/dM - M relation.
 count = 0
 for i,xrantmp in enumerate(xrantmparr):
-    #print count
-    if count == nstars: break
-    idx = np.abs(xdum - xrantmp).argmin()
-    #if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] > iso['mass'].min()) & (xdum[idx] < iso['mass'].max()):
-    if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] >= mass_min) & (xdum[idx] < mass_max):
-        xranarr[count] = xrantmparr[i]
-        yranarr[count] = yrantmparr[i]
-        #print count,xrantmparr[i],yrantmparr[i],xranarr[count],yranarr[count]
-        count += 1
-    else:
-        pass
+  #print count
+   if count == nstars: break
+   idx = np.abs(xdum - xrantmp).argmin()
+   if (yrantmparr[i] <= ydum[idx]) & (xdum[idx] >= mass_min) & (xdum[idx] < mass_max):
+       xranarr_rej[count] = xrantmparr[i]
+       yranarr_rej[count] = yrantmparr[i]
+       count += 1
+   else:
+       pass
+
+   if len(yranarr_rej[yranarr_rej > 0.0]) < nstars:
+       print "Need to generate more samples!"
+       raise SystemExit
+
+mc_mass_arr_pri = xranarr_rej
+
+mc_mass_arr_tot = mc_mass_arr_pri
 
 #Interpolate isochrone magnitude-mass relation
 isort = np.argsort(iso['mass'])  #! argsort = returns indices for sorted array, sort=returns sorted array
@@ -114,11 +140,10 @@ f1 = interpolate.splrep(iso['mass'][isort],iso[sysmag1][isort]+dist_mod)
 f2 = interpolate.splrep(iso['mass'][isort],iso[sysmag2][isort]+dist_mod)
 
 #Assign magnitudes to each star based on their mass and the mass-magnitude relation calculated above.
-mag1ranarr_0 = interpolate.splev(xranarr,f1)
-mag2ranarr_0 = interpolate.splev(xranarr,f2)  #band 2 = for system=wfpc2
+mag1ranarr_0 = interpolate.splev(mc_mass_arr_tot,f1)
+mag2ranarr_0 = interpolate.splev(mc_mass_arr_tot,f2)  #band 2 = for system=wfpc2
 der_mag2ranarr_0 = interpolate.splev(xranarr,f2,der=1)  #band 2 = for system=wfpc2
 colorranarr_0  = mag1ranarr_0 - mag2ranarr_0
-
 
 #############################################
 
