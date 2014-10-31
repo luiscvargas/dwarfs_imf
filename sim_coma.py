@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from myanalysis import *
 
+
 #Read-in Coma Data
 
 f = open(os.getenv('DATA')+'/HST/'+'comber_clean.cat','r')
@@ -204,6 +205,7 @@ ax2.set_xticklabels(np.array(masslabels,dtype='<S5'))
 ax2.text(min(magbins_cen)+.1,50.,r'$N(WFC3) = {0:<3d}$'.format(int(n_wfc3)),fontsize=11)
 ax2.text(min(magbins_cen)+.1,65.,r'$N(ACS) = {0:<3d}$'.format(int(n_acs)),fontsize=11)
 ax2.text(min(magbins_cen)+.1,80.,r'$Single Mock$',fontsize=11)
+
 
 w = np.argmin(abs(iso0['mass']-.17))
 ax1.plot([iso0[sysmag2][w]+dmod_coma-(28.1875 - 24.6949),iso0[sysmag2][w]+dmod_coma-(28.1875 - 24.6949)],[5.,100],ls='--',color='k',lw=2)

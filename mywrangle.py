@@ -186,7 +186,7 @@ def filter_phot(data,system,sysmag1,sysmag2,**kwargs):
 
 def read_iso_darth(age,feh,afe,system,**kwargs):
     #get data from pickled isochrone library
-    f = open("iso/"+"dartmouth_"+system+".obj",'rb')
+    f = open(os.getenv('ASTRO_DIR')+'/dwarfs_imf/iso/'+'dartmouth_'+system+'.obj','rb')
     isodata = pickle.load(f)
     f.close()
     isodata = isodata[(isodata['age'] == age) & (isodata['feh'] == feh) &
@@ -255,7 +255,7 @@ def read_iso_darth(age,feh,afe,system,**kwargs):
 def read_iso_darth_txt(age,feh,afe,system,**kwargs):
     
     if system == 'sdss': 
-        f = open(os.getenv('ASTRO_DIR')+'/iso/test.iso','r')
+        f = open(os.getenv('ASTRO_DIR')+'/dwarfs_imf/iso/test.iso','r')
         ids = ['mass','teff','logg','sdss_g','sdss_r','sdss_i']
         iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
             header=None,skiprows=9,usecols=(1,2,3,6,7,8))
@@ -272,7 +272,7 @@ def read_iso_darth_txt(age,feh,afe,system,**kwargs):
         if afe == 0.6: afe_str = 'afep6'
         if afe == 0.8: afe_str = 'afep8' 
         isofile = 'a'+age_str+feh_str+afe_str+suffix
-        f = open(os.getenv('ASTRO_DIR')+'/iso/'+isofile,'r')
+        f = open(os.getenv('ASTRO_DIR')+'/dwarfs_imf/iso/'+isofile,'r')
         ids = ['mass','teff','logg','f606w','f814w']
         iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
             header=None,skiprows=9,usecols=(1,2,3,12,16))

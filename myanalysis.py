@@ -136,6 +136,8 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
        plt.xlabel(r"log\,$M$") ; plt.ylabel(r"log\,$dN/dM$")
        plt.show()
 
+   raise SystemExit
+
    #Generate random data points in 2D and stop when 100 points are within 
    #desired region
 
