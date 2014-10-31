@@ -22,7 +22,7 @@ ferr_arr = [1.0]
 
 if imftype == 'salpeter':
 
-    f = open('results/eda_salpeter.dat','r')
+    f = open(getenv('ASTRO_DIR')+'/dwarfs_imf'+'/results/eda_salpeter.dat','r')
     dataall = np.genfromtxt(f,comments='#',names=True,delimiter=',')
     f.close() 
     title = r"MC Tests, Salpeter"
@@ -30,7 +30,7 @@ if imftype == 'salpeter':
 
 elif imftype == 'chabrier':
 
-    f = open('results/eda_chabrier.dat','r')
+    f = open(getenv('ASTRO_DIR')+'/dwarfs_imf'+'/results/eda_chabrier.dat','r')
     dataall = np.genfromtxt(f,comments='#',names=True,delimiter=',')
     f.close()
     title = r"MC Tests, Chabrier"
@@ -38,7 +38,7 @@ elif imftype == 'chabrier':
 
 elif imftype == 'kroupa':
 
-    f = open('results/eda_kroupa.dat','r')
+    f = open(getenv('ASTRO_DIR')+'/dwarfs_imf'+'/results/eda_kroupa.dat','r')
     dataall = np.genfromtxt(f,comments='#',names=True,delimiter=',')
     f.close()
     title = r"MC Tests, Kroupa"

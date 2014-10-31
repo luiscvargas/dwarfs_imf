@@ -4,10 +4,10 @@ from myanalysis import *
 from mywrangle import *
 
 sysmag2 = 'F160W'
-lf1 = np.genfromtxt(open('chabrier_darth.dat','r'),comments='#',names=True,skip_header=9)
+lf1 = np.genfromtxt(open(os.getenv('ASTRO_DIR')+'/dwarfs_imf'+'/chabrier_darth.dat','r'),comments='#',names=True,skip_header=9)
 dN_darth = 10.**lf1['logdN']
 
-lf2 = np.genfromtxt(open('chabrier_parsec.dat','r'),comments='#',names=True,skip_header=12)
+lf2 = np.genfromtxt(open(os.getenv('ASTRO_DIR')+'/dwarfs_imf'+'/chabrier_parsec.dat','r'),comments='#',names=True,skip_header=12)
 dN_parsec = lf2['logdN']
 
 max_darth = max(dN_darth)

@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 from mywrangle import *
 
 #first do so for optical (V,I bands)
-yy=np.genfromtxt(open('iso/age14feh200afe00.yy.iso','r'),names=True,comments='#',skip_header=1)
-da=np.genfromtxt(open('iso/fehm20afep0.UBVRIJHKsKp.darth.iso','r'),names=True,comments='#',skip_header=1)
-pa=np.genfromtxt(open('iso/age135feh200afe00.parsec.opt.iso','r'),names=True,comments='#',skip_header=12)
+yy=np.genfromtxt(open(os.getenv('ASTRO_DIR')+'/dwarfs_imf'+'/iso/age14feh200afe00.yy.iso','r'),names=True,comments='#',skip_header=1)
+da=np.genfromtxt(open(os.getenv('ASTRO_DIR')+'/dwarfs_imf'+'/iso/fehm20afep0.UBVRIJHKsKp.darth.iso','r'),names=True,comments='#',skip_header=1)
+pa=np.genfromtxt(open(os.getenv('ASTRO_DIR')+'/dwarfs_imf'+'/iso/age135feh200afe00.parsec.opt.iso','r'),names=True,comments='#',skip_header=12)
 
 dmod = 18.22
 
@@ -30,7 +30,7 @@ ax.axis([.15,.65,23,28])
 da = read_iso_darth(14.0,-2.0,0.0,'wfc3')
 da['F110W'] = da['F110W'] - (28.4401 - 26.0628)  #STMAG-->VEGA
 da['F160W'] = da['F160W'] - (28.1875 - 24.6949)  #STMAG-->VEGA
-pa=np.genfromtxt(open('iso/age135feh200afe00.parsec.iso','r'),names=True,comments='#',skip_header=12)
+pa=np.genfromtxt(open(os.getenv('ASTRO_DIR')+'/dwarfs_imf'+'/iso/age135feh200afe00.parsec.iso','r'),names=True,comments='#',skip_header=12)
 
 plt.figure(2)
 

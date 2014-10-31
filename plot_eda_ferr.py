@@ -6,7 +6,7 @@ rc('text', usetex=True)
 rc('font', family='serif')
 
 
-f = open('eda2.dat','r')
+f = open(getenv('ASTRO_DIR')+'/dwarfs_imf/'+'results/eda2.dat','r')
 data = np.genfromtxt(f,comments='#',names=True,delimiter=',')
 f.close()
 

@@ -109,7 +109,7 @@ def read_phot(photfile,**kwargs):
 
 def read_iso_darth(age,feh,afe,system):
     if system == 'sdss': 
-        f = open('iso/test.iso','r')
+        f = open(getenv('ASTRO_DIR')+'/dwarfs_imf'+'/iso/test.iso','r')
         ids = ['mass','teff','logg','sdss_g','sdss_r','sdss_i']
         iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
             header=None,skiprows=9,usecols=(1,2,3,6,7,8))
@@ -126,7 +126,7 @@ def read_iso_darth(age,feh,afe,system):
         if afe == 0.6: afe_str = 'afep6'
         if afe == 0.8: afe_str = 'afep8' 
         isofile = 'a'+age_str+feh_str+afe_str+suffix
-        f = open('iso/'+isofile,'r')
+        f = open(getenv('ASTRO_DIR')+'/dwarfs_imf'+'/iso/'+isofile,'r')
         ids = ['mass','teff','logg','f606w','f814w']
         iso_pd = pd.read_csv(f,comment='#',names=ids,delim_whitespace=True,
             header=None,skiprows=9,usecols=(1,2,3,12,16))
@@ -140,8 +140,8 @@ def read_iso_darth(age,feh,afe,system):
     return iso_pd
 
 def read_dsph_data():
-    f=open('mwdwarfs_properties_luis.dat')
-    g=open('mwdwarfs_properties_luis_2.dat')
+    f=open(getenv('ASTRO_DIR')+'/dwarfs_imf/'+'/mwdwarfs_properties_luis.dat')
+    g=open(getenv('ASTRO_DIR')+'/dwarfs_imf/'+'mwdwarfs_properties_luis_2.dat')
     columns = ['dsph','Mv','Mv_err','MV_source','rhelio','erhelio_err','dmod0','dmod0_err',
     'dist_source','r_h','r_h_err','r_h_source','tmp1','tmp2','tmp3','vrad','vrad_err',
     'vgsr','sigma_vel','sigma_vel_err','tmp4','source_kinematics']

@@ -171,15 +171,15 @@ magbins_cen = (magbins[:-1] + magbins[1:])/2.
 
 qq = np.argmin(abs(magbins-25.))
 
-lf1 = np.genfromtxt(open('tmp_alpha13.dat','r'),comments='#',names=True,skip_header=9)
+lf1 = np.genfromtxt(open(getenv('ASTRO_DIR')+'/dwarfs_imf/'+'tmp_alpha13.dat','r'),comments='#',names=True,skip_header=9)
 w = np.argmin(abs(lf1['F160W']-(25.-dmod_coma)))
 dN_darth_alpha13 = 10.**lf1['logdN'] * ( phi_1_arr_mean[qq] / 10.**lf1['logdN'][w])
 
-lf2 = np.genfromtxt(open('tmp_mc03.dat','r'),comments='#',names=True,skip_header=9)
+lf2 = np.genfromtxt(open(getenv('ASTRO_DIR')+'/dwarfs_imf/'+'tmp_mc03.dat','r'),comments='#',names=True,skip_header=9)
 w = np.argmin(abs(lf2['F160W']-(25.-dmod_coma)))
 dN_darth_mc03 = 10.**lf2['logdN'] * ( phi_2_arr_mean[qq] / 10.**lf2['logdN'][w])
 
-lf3 = np.genfromtxt(open('tmp_mc04.dat','r'),comments='#',names=True,skip_header=9)
+lf3 = np.genfromtxt(open(getenv('ASTRO_DIR')+'/dwarfs_imf/'+'tmp_mc04.dat','r'),comments='#',names=True,skip_header=9)
 w = np.argmin(abs(lf3['F160W']-(25.-dmod_coma)))
 dN_darth_mc04 = 10.**lf3['logdN'] * ( phi_3_arr_mean[qq] / 10.**lf3['logdN'][w])
 
