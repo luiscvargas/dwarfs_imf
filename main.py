@@ -37,7 +37,7 @@ if sim == 1:
     if imftype == 'salpeter': 
         imftype_in = 'salpeter'
         imftype_out = 'salpeter'
-        alpha_in = 1.1
+        alpha_in = 2.35
         #param_out_arr = np.array([0.0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6]) # alpha_out_arr
         param_out_arr = np.array([0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5]) # alpha_out_arr
         
@@ -45,7 +45,7 @@ if sim == 1:
     if imftype == 'chabrier': 
         imftype_in = 'chabrier'
         imftype_out = 'chabrier'
-        mc_in = 0.08  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
+        mc_in = 0.30  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
         sigmac_in = 0.69  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
         sigmac_out = 0.69  #fixed to be the same for both input and output, if not, need to specify sigmac_in, and sigmac_out
         #maximize likelihood over mc
@@ -105,7 +105,7 @@ if sim == 1:
         nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
             imftype='salpeter',alpha=alpha_in,mass_min_global=mass_min_global)
         phot = simulate_cmd(nall,isoage,isofeh,isoafe,dmod0,magarr1,magerrarr1,magarr2,magerrarr2,
-            system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed)  #1.5 bc of additional
+            system,sysmag1,sysmag2,imftype='salpeter',alpha=alpha_in,mass_min=mass_min_global,start_seed=start_seed,fb=0.25,alpha_sec=0.4)  #1.5 bc of additional
     if imftype_in == 'chabrier':
         nall, mass_min_fit, mass_max_fit = estimate_required_n(nstars,14.0,-2.5,0.4,'acs','F814W',20.63,24.3,y2max,  
             imftype='chabrier',mc=mc_in,sigmac=sigmac_in,mass_min_global=mass_min_global)
@@ -281,7 +281,6 @@ if imftype == 'kroupa'  : plt.plot([alpha1_in,alpha1_in],[ymin,ymax],ls='..',lw=
 plt.axis([xmin,xmax,ymin,ymax])
 plt.xlabel(r'Parameter')
 plt.ylabel(r'$-$ln\,$L$ + $k$')
-#plt.savefig(os.getenv('HOME')+'/Desktop/alpha_lnL.png',bbox_inches='tight')
 #assumes that for chabrier, it is Mc that is being fit, and for kroupa, alpha1
 if imftype == 'salpeter': plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit to Salpeter IMF')
 if imftype == 'chabrier': plt.text(xmin+.4*(xmax-xmin),ymax-.1*(ymax-ymin),r'Fit to Chabrier IMF')

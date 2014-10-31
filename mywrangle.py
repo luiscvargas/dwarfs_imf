@@ -172,7 +172,6 @@ def filter_phot(data,system,sysmag1,sysmag2,**kwargs):
             plt.ylabel(r'$r_0$')
             plt.xlabel(r'$N_{cumul}$')
             plt.axis([-2+dmod0,6+dmod0,0,1.1])
-            #plt.savefig(os.getenv('HOME')+'/Desktop/select_region.png',bbox_inches='tight')
             plt.show()
 
         rmin_box = float(raw_input('enter minimum rmag>> '))

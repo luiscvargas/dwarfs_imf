@@ -94,6 +94,5 @@ if 0:
    plt.xlabel(col_name)
    plt.scatter(phot_raw['col'],phot_raw['mag'],color='k',marker='.',s=1)
    plt.scatter(phot['col'],phot['mag'],color='r',marker='o',s=2)
-   #plt.savefig(os.getenv('HOME')+'/Desktop/fitting_data.png',bbox_inches='tight')
    plt.show()
 
