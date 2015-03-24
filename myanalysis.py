@@ -488,23 +488,37 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    return simdata
 
-def normalize_lf(mass,dNdm):
-    #will normalize luminosity function given constraints - currently done within f_salpeter, etc
-    #dmass_arr = np.ediff1d(mass_arr,to_end=0.0)   
-    #dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
-    #dmass_arr = abs(dmass_arr)
-    #Find normalization - 12-aug-2012
-    #knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
-    #dN_arr = knorm * dN_arr
-    #return dN_arr
-    pass
-
-#now specify a "Salpeter LF", alpha is exponent in linear eqn, alpha = Gamma + 1
-
-def f_salpeter(mass,alpha):
+def normalize_lf(mass,dNdM,ntot,mass_range):
     '''
-    Return dN/dM for a single power-law IMF, for either a single mass 'mass', or for a np mass array.
-    dN/dM = M^(-1 * alpha); where alpha = 2.35 is Salpeter value.
+    Return a copy of dN/dM with the condition that Integral dN/dM * dM = ntot, 
+    between [mass_range[0], mass_range[1]]
+    dN/dM
+    '''
+    if len(mass_range) != 2:
+        print("mass_range should be of form [mass_min,mass_max]")
+        return -1
+
+    if mass_range[0] >= mass_range[1]:
+        print("minimum mass must be smaller than maximum mass")
+        return -1
+
+    mass_m = np.copy(mass)
+    dNdM_m = np.copy(dNdM)
+    mass_m = mass_m[(mass >= mass_range[0]) & (mass <= mass_range[1])]
+    dNdM_m = dNdM_m[(mass >= mass_range[0]) & (mass <= mass_range[1])]
+    dmass_m = np.ediff1d(mass_m)
+    cnorm = ntot / np.sum( dNdM_m[:-1] * dmass_m )
+    
+    return cnorm * np.copy(dNdM)
+    
+def f_salpeter(mass,alpha=2.35):
+    '''
+    Inputs: 
+        mass: single mass, or mass numpy array
+    Output: 
+        Return dN/dM for a single power-law IMF
+    Functional form: 
+        dN/dM = M^(-1 * alpha); where alpha = 2.35 is Salpeter value.
     '''
     #to end sets last element to 0 otherwise one element too few.
     dNdM = (mass**(-1.*alpha))
