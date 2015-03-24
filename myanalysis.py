@@ -488,88 +488,78 @@ def simulate_cmd(nstars,isoage,isofeh,isoafe,dist_mod,inmagarr1,inmagerrarr1,inm
 
    return simdata
 
-#now specify a Salpeter LF, alpha is exponent in linear eqn, alpha = Gamma + 1
-
-def f_salpeter(mass_arr,mass_min,mass_max,alpha,**kwargs):
-    #to end sets last element to 0 otherwise one element too few.
-    dmass_arr = np.ediff1d(mass_arr,to_end=0.0)   
-    dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
-    dmass_arr = abs(dmass_arr)
-    dN_arr = (mass_arr**(-1.*alpha)) * dmass_arr
-    #dN_arr[mass_arr < mass_min] = 0.0
-    #dN_arr[mass_arr > mass_max] = 0.0
-    dN_arr[mass_arr < 0.08] = 0.0
-    dN_arr[mass_arr > 100.] = 0.0
-    if 'normalize' in kwargs.keys():
-        if kwargs['normalize'] == False: #return dN_arr before normalization
-            return dN_arr
+def normalize_lf(mass,dNdm):
+    #will normalize luminosity function given constraints - currently done within f_salpeter, etc
+    #dmass_arr = np.ediff1d(mass_arr,to_end=0.0)   
+    #dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
+    #dmass_arr = abs(dmass_arr)
     #Find normalization - 12-aug-2012
-    knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
-    dN_arr = knorm * dN_arr
-    return dN_arr
+    #knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
+    #dN_arr = knorm * dN_arr
+    #return dN_arr
+    pass
+
+#now specify a "Salpeter LF", alpha is exponent in linear eqn, alpha = Gamma + 1
+
+def f_salpeter(mass,alpha):
+    '''
+    Return dN/dM for a single power-law IMF, for either a single mass 'mass', or for a np mass array.
+    dN/dM = M^(-1 * alpha); where alpha = 2.35 is Salpeter value.
+    '''
+    #to end sets last element to 0 otherwise one element too few.
+    dNdM = (mass**(-1.*alpha))
+    dNdM[(mass < 0.08) | (mass > 100.0)] = 0.0
+    return dNdM
 
 #specify a Chabrier LF, but given in dN/dM. The Chabrier IMF is given typically as dN/d(logM)
-#dN/dM = (1/ln10)*(1/M)*dN/dlogM, and this is calculated within the function. Finally, return
-#dM, as for f_salpeter .
 #Careful: denominator in first term has ln10 = np.log(10), but exponential is log10 M, so np.log10(m)
-def f_chabrier(mass_arr,mass_min,mass_max,mass_crit,sigma_mass_crit,**kwargs):
-    dmass_arr = np.ediff1d(mass_arr,to_end=0.0)  
-    dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] 
-    dmass_arr = abs(dmass_arr)
-    #dN_arr = (1./(np.log(10.)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
-    #    np.exp(-1. * (np.log(mass_arr)-np.log(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
-    #    dmass_arr)
-    dN_arr = ((1./(np.log(10.)*mass_arr)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
-        np.exp(-1. * (np.log(mass_arr)-np.log(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
-        dmass_arr)
-    #dN_arr = (1./(np.log(10.)) * (1./(np.sqrt(2.*np.pi)*sigma_mass_crit)) * 
-    #    np.exp(-1. * (np.log(mass_arr)-np.log(mass_crit))**2 / (2. * sigma_mass_crit**2)) * 
-    #    dmass_arr)
-    #plt.plot(mass_arr,dN_arr)
-    #plt.plot(mass_arr,dN_arr2,c='green')
-    #plt.show()
-    dN_arr[mass_arr < 0.08] = 0.0
-    dN_arr[mass_arr > 100.0] = 0.0
-    if 'normalize' in kwargs.keys():
-        if kwargs['normalize'] == False: #return dN_arr before normalization
-            return dN_arr
-    #Find normalization - 12-aug-2012
-    #knorm = 1. / dN_arr.sum()
-    knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
-    dN_arr = knorm * dN_arr
-    return dN_arr
+def f_chabrier(mass,m_c,sigma_c=0.69):
+    '''
+    Inputs: 
+        mass: single mass, or mass numpy array
+        m_c: "critical" mass parameter
+        sigma_c: width of log-normal distribution, default = 0.69
+    Output: 
+        Return dN/dM for a log-normal IMF
+    Functional form:
+        dN/dM = 1/(log(10) M) x 1/sqrt(2 Pi) x exp[ (ln(m) - ln(m_c)) / 2 sigma^2]
+    Caution: 
+        Literature often gives Chabrier IMF in terms of dN/dlogM; we use dN/dM 
+        for consistency. dN/dM = (1/ln10)*(1/M)*dN/dlogM 
+    '''
+    c = 1. / ((1./(np.log(10.)*1.0)) * (1./(np.sqrt(2.*np.pi)*sigma_c)) * 
+        np.exp(-1. * (np.log(1.0)-np.log(m_c))**2 / (2. * sigma_c**2)))
+    dNdM = c * ((1./(np.log(10.)*mass)) * (1./(np.sqrt(2.*np.pi)*sigma_c)) * 
+        np.exp(-1. * (np.log(mass)-np.log(m_c))**2 / (2. * sigma_c**2)))
+    dNdM[(mass < 0.08) | (mass > 100.0)] = 0.0
+    return dNdM
 
 #Define a Kroupa-like IMF, i.e. with two broken power laws. For low mass-only systems
 #the high mass segment, M > 1 Msun is not important. Here it is fixed to alpha=2.3 as
 #in Kroupa 2001. The Kroupa single-star IMF values are: alpha = 1.3 pm 0.5 for 
 #0.08 < M < 0.5 Msun, and alpha = 2.3 pm 0.3 for 0.5 < M < 1 Msun.
-def f_kroupa(mass_arr,mass_min,mass_max,alpha_1,alpha_2,**kwargs):
-    alpha_3 = 2.3
-    #to end sets last element to 0 otherwise one element too few.
-    dmass_arr = np.ediff1d(mass_arr,to_end=0.0)   
-    dmass_arr[len(dmass_arr)-1] = dmass_arr[len(dmass_arr)-2] #update last element
-    dmass_arr = abs(dmass_arr)  #makes dM positive
-    #Define dN for each of the segments
-    f_23 = (1.0**(-1.*alpha_3)) / (1.0**(-1.*alpha_3)) 
-    f_12 = (0.5**(-1.*alpha_2)) / (0.5**(-1.*alpha_1)) * f_23
-    dN_arr = mass_arr * 0.0 + 0.0
-    dN_arr_1 = f_12 * (mass_arr**(-1.*alpha_1)) * dmass_arr
-    dN_arr_2 = f_23 * (mass_arr**(-1.*alpha_2)) * dmass_arr
-    dN_arr_3 = (mass_arr**(-1.*alpha_3)) * dmass_arr
-    #Assign dN_arr_1/2/3 only to their corresponding mass ranges
-    dN_arr[(mass_arr < 0.08)] = 0.0
-    dN_arr[(mass_arr >= 0.08) & (mass_arr < 0.5)] = dN_arr_1[(mass_arr >= 0.08) & (mass_arr < 0.5)]
-    dN_arr[(mass_arr >= 0.50) & (mass_arr < 1.0)] = dN_arr_2[(mass_arr >= 0.50) & (mass_arr < 1.0)]
-    dN_arr[(mass_arr >= 1.00)] = dN_arr_3[(mass_arr >= 1.00)]
-    dN_arr[(mass_arr > 100.0)] = 0.0
-    #Now splice the segments together so that dN/dM is continuous
-    if 'normalize' in kwargs.keys():
-        if kwargs['normalize'] == False: #return dN_arr before normalization
-            return dN_arr
-    #Find normalization - 12-aug-2012
-    knorm = 1. / np.sum(dN_arr[(mass_arr >= mass_min) & (mass_arr <= mass_max)])
-    dN_arr = knorm * dN_arr
-    return dN_arr
+def f_kroupa(mass,alpha_1,alpha_2,alpha_3 = 2.3):
+    '''
+    Inputs: 
+        mass: single mass, or mass numpy array
+        alpha_1: slope M^(-alpha) for 0.08 < M < 0.50 Msun
+        alpha_2: slope M^(-alpha) for 0.50 < M < 1.00 Msun
+        alpha_3: slope M^(-alpha) for        M > 1.00  Msun [default = 2.3]
+    Output: 
+        Return dN/dM for a broken power-law IMF.
+    Functional form:
+        dN/dM = M ^ (-1 * alpha), where alpha = alpha1, alpha2, alpha3 depending on mass.
+    '''
+    #Define normalization constants so dN/dM is continuous
+    c3 = 1.0
+    c2 = c3 * 1.0**(-1.*alpha_3) / 1.0**(-1.*alpha_2)
+    c1 = c2 * 0.5**(-1.*alpha_2) / 0.5**(-1.*alpha_1)
+    dNdM = mass * 0.0 + 0.0
+    dNdM[(mass < 0.08) | (mass > 100.0)] = 0.0
+    dNdM[(mass >= 0.08) & (mass < 0.5)] = c1 * mass[(mass >= 0.08) & (mass < 0.5)]**(-1.*alpha_1)
+    dNdM[(mass >= 0.50) & (mass < 1.0)] = c2 * mass[(mass >= 0.50) & (mass < 1.0)]**(-1.*alpha_2)
+    dNdM[(mass >= 1.00) & (mass < 100.)] = c3 * mass[(mass >= 1.00) & (mass < 100)]**(-1.*alpha_3)
+    return dNdM
 
     
 def likelihood_matrix(cmd_point,iso_point,error_cov,c_arr):
