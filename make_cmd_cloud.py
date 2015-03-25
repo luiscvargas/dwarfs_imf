@@ -36,6 +36,7 @@ class DartmouthIsochrone(object):
         #Select particular isochrone for specified [Fe/H], [a/Fe], and age. 
         self.iso = data[(data['age'] == age) & (data['feh'] == feh) &
                       (data['afe'] == afe)] 
+        self.data = np.zeros(0) #empty placeholder array for interpolated array
         #Assign descriptive variables to object
         self.age = age
         self.afe = afe
@@ -69,15 +70,17 @@ class DartmouthIsochrone(object):
     #of being finely graded in mass or magnitude - need dM intervals to be small
     #relative to the range of mass considered otherwise dN_*(dM) is not accurate.
 
-    def interpolate(self,dm):
+    def interpolate(self,dm=0.001,diagnose=False):
         #create a np struct array of same type as original.
         #First, sort rows by mass, and interpolate
         isonew = np.copy(self.iso)  # dont use isonew=self.iso!
         isonew = isonew[0]
         isort = np.argsort(self.iso['mass']) 
 
+        npts = long((self.mass_max - self.mass_min) / dm)
+
         #assign size of interpolated array given mass bounds and dm
-        massarr = np.arange(self.mass_min,self.mass_max,dm)
+        massarr = np.linspace(self.mass_min,self.mass_max,npts)
         
         #check that interpolation would result in more data points that
         #original array, else interpolate.splrep fails. 
@@ -94,7 +97,13 @@ class DartmouthIsochrone(object):
         isonew['afe']  = self.iso['afe'][0]
         isonew['age']  = self.iso['age'][0]
 
-        colnames = self.iso.dtype.names  
+        colnames = self.iso.dtype.names 
+
+        colnames2 = colnames[colnames != 'idx' and colnames != 'feh' and 
+                colnames != 'afe' and colnames != 'age' and colnames != 'mass']
+
+        print colnames2  #tuple is immutable!
+
         for icol,colname in enumerate(colnames):
 
             if (colname != 'idx' and colname != 'feh' and colname != 'afe' and colname != 'age' and
@@ -118,6 +127,11 @@ class DartmouthIsochrone(object):
         self.data = isonew
         self.interp_flag = 1
 
+        if diagnose == True:
+            plt.plot(self.iso['F110W'],self.iso['F160W'],'r-',lw=3)
+            plt.plot(self.data['F110W'],self.data['F160W'],'b--',lw=1)
+            plt.show()
+
     def has_interp(self):
         if self.interp_flag == 0:
             print "No interpolation done on file"
@@ -125,14 +139,51 @@ class DartmouthIsochrone(object):
             print "Interpolated data located as self.data"
             print "Non-interpolated data located as self.iso"
 
-myiso = DartmouthIsochrone(-2.0,0.4,14.0,'wfc3',)
-myiso.interpolate(0.001)
-myiso.has_interp()
-#myiso.change_min_mass(.30) ; myiso.change_max_mass(.75)
-#myiso2.interpolate(0.05)
+#Generate an isochrone object and interpolate to a uniformly-spaced mass array.
 
-#plot to check interpolate
-plt.plot(myiso.iso['F110W'],myiso.iso['F160W'],'r-',lw=3)
-plt.plot(myiso.data['F110W'],myiso.data['F160W'],'b--',lw=1)
+myiso = DartmouthIsochrone(-2.0,0.4,14.0,'wfc3',)
+myiso.interpolate(dm=0.001,diagnose=False)
+myiso.has_interp()
+
+strmag1 = 'F110W'
+strmag2 = 'F160W'
+
+plt.plot(myiso.data[strmag1]-myiso.data[strmag2],myiso.data[strmag2],lw=2)
+plt.axis([-1,0,15,0])
+plt.xlabel(strmag1 + '-' + strmag2)
+plt.ylabel(strmag2)
 plt.show()
+
+#Proceed to draw stars from distribution. 
+#Will use rejection sampling as it not clear how to use inverse transformation
+#when binaries are included, except when 
+
+#binary approach 1: 
+    # dN/dM: both primary and secondary drawn from full IMF distribution, then matched randomly
+    # binary fraction, q binary systems: ntot = (1-q)*nsys + 2q*nsys, fraction of stars in binaries = 
+    # 2q*nsys / ntot = 2q*nsys / (1+q)*nsys , n single stars = ntot * (1-q)*nsys/(1+q)*nsys = (1-q)/(1+q)
+    # 1 alt: change boundaries on Mmin, and Mmax.
+
+mass = myiso.data['mass']
+
+print min(mass),max(mass)
+
+alpha = 2.35
+fs = f_salpeter(mass,alpha)
+fk = f_kroupa(mass,1.35,1.7,alpha_3=2.30)
+Phi_s = np.cumsum(fs)
+Phi_s = Phi_s / max(Phi_s)
+Phi_k = np.cumsum(fk)
+Phi_k = Phi_k / max(Phi_k)
+
+#do inverse transform sampling
+
+plt.plot(Phi_s,mass,color='red',label='PL')
+plt.plot(Phi_k,mass,color='blue',label='BkPL')
+plt.axis([0,1,0,0.9])
+plt.legend()
+plt.show()
+
+
+
 
