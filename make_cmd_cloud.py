@@ -166,8 +166,6 @@ plt.show()
 
 mass = myiso.data['mass']
 
-print min(mass),max(mass)
-
 alpha = 2.35
 fs = f_salpeter(mass,alpha)
 fk = f_kroupa(mass,1.35,1.7,alpha_3=2.30)
@@ -176,7 +174,75 @@ Phi_s = Phi_s / max(Phi_s)
 Phi_k = np.cumsum(fk)
 Phi_k = Phi_k / max(Phi_k)
 
+#use salpeter
+Phi = Phi_s
+f_Phiinv = interpolate.splrep(Phi,mass)
+
+#Set binary fraction = number of binary systems
+q = 0.0
+nrequired = 5000
+
+mass_min = 0.2
+mass_max = 0.8
+w = np.argmin(abs(mass - mass_min))
+mag_max = myiso.data[strmag2][w]
+w = np.argmin(abs(mass - mass_max))
+mag_min = myiso.data[strmag2][w]
+
 #do inverse transform sampling
+
+mass_pri_arr = []  #reset mass array
+mass_sec_arr = []  #reset mass array
+mass_arr = []  #reset mass array
+mag1_arr = []
+mag2_arr = []
+ngood = 0
+
+while ngood < nrequired:
+    ranarr = np.random.uniform(size=nrequired)
+    mass_raw_arr = interpolate.splev(ranarr,f_Phiinv)
+    #assign magnitudes to masses for single star/binary case
+    for i in range(int(nrequired * (1.-q)/(1.+q))):
+            w = np.argmin(abs(mass - mass_raw_arr[i]))
+            mag1_arr.append(myiso.data[strmag1][w])
+            mag2_arr.append(myiso.data[strmag2][w])
+            mass_pri_arr.append(mass_raw_arr[i])
+            mass_sec_arr.append(0.0)
+            mass_arr.append(mass_raw_arr[i])
+    for i in range(int(nrequired * (1.-q)/(1.+q)),nrequired,2):
+            wa = np.argmin(abs(mass - mass_raw_arr[i]))
+            wb = np.argmin(abs(mass - mass_raw_arr[i+1]))
+            if mass_raw_arr[i+1] > mass_raw_arr[i]:
+                #swap wa and wb, so wa points to primary
+                wtmp = wa
+                wa = wb
+                wb = wtmp
+            mag1_a = myiso.data[strmag1][wa]
+            mag2_a = myiso.data[strmag2][wa]
+            mag1_b = myiso.data[strmag1][wb]
+            mag2_b = myiso.data[strmag2][wb]
+            gamma1 = 1. + 10.**(0.4*(mag1_a - mag1_b))
+            gamma2 = 1. + 10.**(0.4*(mag2_a - mag2_b))
+            mag1 = mag1_a - 2.5*np.log10(gamma1)
+            mag2 = mag2_a - 2.5*np.log10(gamma2)
+            mass_pri = mass[wa]
+            mass_sec = mass[wb]
+            mass_tot = mass_pri + mass_sec
+            mag1_arr.append(mag1) 
+            mag2_arr.append(mag2) 
+            mass_pri_arr.append(mass_pri)
+            mass_sec_arr.append(mass_sec)
+            mass_arr.append(mass_tot)
+
+    #update the number of systems (singles or binaries) within the desired
+    #magnitude bins - do NOT make cuts until the end, e.g., cannot chooose
+    #not to include stars to list if they do not meet constraints as will
+    #bias mass/magnitude distributions.
+    ngood = len([x for x in mag2_arr if x >= mag_min and x <= mag_max])
+
+plt.hist(mass_arr,bins=20)
+plt.show()
+
 
 plt.plot(Phi_s,mass,color='red',label='PL')
 plt.plot(Phi_k,mass,color='blue',label='BkPL')
