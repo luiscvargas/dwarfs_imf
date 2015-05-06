@@ -209,35 +209,13 @@ class SyntheticCMD(object):
         self.mag1label = strmag1
         self.mag2label = strmag2
 
-    def cmdPlot(self,**kwargs):
-        font = {'family' : 'serif',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 14,
-        }
-        import matplotlib.pyplot as plt
-        plt.scatter(self.color, self.mag2, marker='o', s=0.5, color='blue')
-        xmin = min(self.color)-0.1 ; xmax = max(self.color)+0.1
-        ymin = max(self.mag2)+0.1 ; ymax = min(self.mag2)-0.1
-        if 'xrange' in kwargs.keys():
-            xmin = kwargs['xrange'][0]
-            xmax = kwargs['xrange'][1]
-        if 'yrange' in kwargs.keys():
-            ymin = kwargs['yrange'][0]
-            ymax = kwargs['yrange'][1]
-        plt.axis([xmin,xmax,ymin,ymax])
-        plt.xlabel(self.mag1label + ' - ' + self.mag2label,fontdict=font)
-        plt.ylabel(self.mag2label,fontdict=font)
-        plt.text(xmin+.1,ymax+.2,'q = {0:<g}'.format(q),fontdict=font)
-        plt.show()
-
     def as_dict(self):
         dict = {}
-        dict['mass_pri'] = np.array(mass_pri_arr)
-        dict['mass_sec'] = np.array(mass_sec_arr)
-        dict['mass'] = np.array(mass_arr)
-        dict['mag1'] = np.array(mag1_arr)
-        dict['mag2'] = np.array(mag2_arr)
+        dict['mass_pri'] = np.array(self.mass_pri)
+        dict['mass_sec'] = np.array(self.mass_sec)
+        dict['mass'] = np.array(self.mass)
+        dict['mag1'] = np.array(self.mag1)
+        dict['mag2'] = np.array(self.mag2)
         dict['color'] = dict['mag1'] - dict['mag2']
         return dict
 
@@ -262,6 +240,50 @@ class SyntheticCMD(object):
         cset = plt.contour(xg,yg,fg)
         plt.show()
 
+
+def cmdPlot(cmd,**kwargs):
+    font = {'family' : 'serif',
+    'color'  : 'black',
+    'weight' : 'normal',
+    'size'   : 14,
+    }
+    import matplotlib.pyplot as plt
+    plt.scatter(cmd.color, cmd.mag2, marker='o', s=0.5, color='blue')
+    xmin = min(cmd.color)-0.1 ; xmax = max(cmd.color)+0.1
+    ymin = max(cmd.mag2)+0.1 ; ymax = min(cmd.mag2)-0.1
+    if 'xrange' in kwargs.keys():
+        xmin = kwargs['xrange'][0]
+        xmax = kwargs['xrange'][1]
+    if 'yrange' in kwargs.keys():
+        ymin = kwargs['yrange'][0]
+        ymax = kwargs['yrange'][1]
+    plt.axis([xmin,xmax,ymin,ymax])
+    plt.xlabel(cmd.mag1label + ' - ' + cmd.mag2label,fontdict=font)
+    plt.ylabel(cmd.mag2label,fontdict=font)
+    plt.text(xmin+.1,ymax+.5,'q = {0:<g}'.format(cmd.q),fontdict=font)
+    plt.show()
+
+def magPlot(cmd,**kwargs):
+    font = {'family' : 'serif',
+    'color'  : 'black',
+    'weight' : 'normal',
+    'size'   : 14,
+    }
+    import matplotlib.pyplot as plt
+    plt.scatter(cmd.mag1, cmd.mag2, marker='o', s=0.5, color='blue')
+    xmin = min(cmd.mag1)-0.1 ; xmax = max(cmd.mag1)+0.1
+    ymin = min(cmd.mag2)-0.1 ; ymax = max(cmd.mag2)+0.1
+    if 'xrange' in kwargs.keys():
+        xmin = kwargs['xrange'][0]
+        xmax = kwargs['xrange'][1]
+    if 'yrange' in kwargs.keys():
+        ymin = kwargs['yrange'][0]
+        ymax = kwargs['yrange'][1]
+    plt.axis([xmin,xmax,ymin,ymax])
+    plt.xlabel(cmd.mag1label,fontdict=font)
+    plt.ylabel(cmd.mag2label,fontdict=font)
+    plt.text(xmin+.1,ymax-.1,'q = {0:<g}'.format(q),fontdict=font)
+    plt.show()
 
 
 #Generate an isochrone object and interpolate to a uniformly-spaced mass array.
@@ -307,11 +329,11 @@ f_Phiinv = interpolate.splrep(Phi_s,isomass)
 
 #Set binary fraction = number of binary systems
 q = 1.0
-nrequired = 30000
+nrequired = 80000
 
 #one way to select range of mags
 #another is based on observational constraints
-mass_min = 0.2
+mass_min = 0.3
 mass_max = 0.8
 w = np.argmin(abs(isomass - mass_min))
 mag_max = myiso.data[strmag2][w]
@@ -321,9 +343,16 @@ mag_min = myiso.data[strmag2][w]
 #do inverse transform sampling
 
 cmd = SyntheticCMD(myiso,strmag1,strmag2,mag_min,mag_max,nrequired,
-    f_Phiinv,q=q)
+    f_Phiinv,q=1.0)
 
-cmd.cmdPlot(yrange=[10,7])
+cmdPlot(cmd,yrange=[10,2])
+
+magsub1 = cmd.mag2[(cmd.mag2 >= mag_min) & (cmd.mag2 <= mag_max)]
+magsub2 = cmd.mag2[(cmd.mag2 >= mag_min) & (cmd.mag2 <= mag_max)]
+yval, edges = np.histogram(magsub2,bins=20)
+xval = 0.5 * (edges[1:] + edges[:-1])
+plt.bar(xval,yval,align='center',width=xval[1]-xval[0],color=None)
+plt.show()
 
 #dx = 0.2
 #cmd.cmdDensity(dx,dx)
