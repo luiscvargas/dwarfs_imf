@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import sys
 import os 
 import numpy as np
@@ -310,12 +311,13 @@ def read_dsph_data():
     columns = ['dsph','Mv','Mv_err','MV_source','rhelio','erhelio_err','dmod0','dmod0_err',
     'dist_source','r_h','r_h_err','r_h_source','tmp1','tmp2','tmp3','vrad','vrad_err',
     'vgsr','sigma_vel','sigma_vel_err','tmp4','source_kinematics']
-    dsphs1 = pd.read_csv(f,names=columns,skiprows=3,comment='#',sep='\s+',header=None,
+    dsphs1 = pd.read_csv(f,names=columns,skiprows=3,comment='#',delim_whitespace=True,header=None,
     usecols=np.arange(22),index_col=0)
     
     dsphs2 = pd.read_csv(g,names=['dsph','ebv','ebv_source','pa','pa_err','pa_source','ellip','ellip_err','ellip_source',
     'ra','dec','source_radec','tmp1','tmp2','tmp3'],skiprows=3,comment='#',sep='\s+',header=None,
-    usecols=np.arange(15),index_col=0) 
+    usecols=np.arange(15),index_col=0)
+
 
     f.close()
     g.close()
