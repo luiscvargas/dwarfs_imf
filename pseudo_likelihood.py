@@ -43,14 +43,19 @@ xmin = -1.0
 xmax =  0.5
 ymin = 22
 ymax = 30
+xminfit = -1.0
+xmaxfit =  0.5
+yminfit = 22
+ymaxfit = 30
+binsize = 0.04
 binsize = 0.04
 
-nbinx = int((xmax - xmin) / binsize)
-nbiny = int((ymax - ymin) / binsize)
+nbinx = int((xmaxfit - xminfit) / binsize)
+nbiny = int((ymaxfit - yminfit) / binsize)
 
 #calculate heat map number counts
-xedges = np.linspace(xmin,xmax,nbinx)
-yedges = np.linspace(ymin,ymax,nbiny)
+xedges = np.linspace(xminfit,xmaxfit,nbinx)
+yedges = np.linspace(yminfit,ymaxfit,nbiny)
 Hobs, xedges, yedges = np.histogram2d(colorarr,magarr,bins=[xedges,yedges],normed=False)
 Hobs = Hobs / Hobs.max()
 
@@ -127,12 +132,12 @@ f_Phiinv = interpolate.splrep(Phi_s,isomass)
 
 #Set binary fraction = number of binary systems
 q = 0.3
-nrequired = 80000
+nrequired = 30000
 
 #one way to select range of mags
     #another is based on observational constraints
-mass_min = 0.3
-mass_max = 0.8
+mass_min = 0.4
+mass_max = 0.75
 w = np.argmin(abs(isomass - mass_min))
 abs_mag_max = myiso.data[strmag2][w]
 w = np.argmin(abs(isomass - mass_max))
@@ -160,8 +165,8 @@ ax2 = fig.add_subplot(222)
 plot_obs_sim(ax2,[xmin,xmax],[ymax,ymin],mag1-mag2,mag2,colorarr,magarr,
 	xlabel=strmag1 + '-' + strmag2,ylabel=strmag2,title="Simulated Data w/Uncertainties")
 
-xedges = np.linspace(xmin,xmax,nbinx)
-yedges = np.linspace(ymin,ymax,nbiny)
+xedges = np.linspace(xminfit,xmaxfit,nbinx)
+yedges = np.linspace(yminfit,ymaxfit,nbiny)
 Hsim, xedges, yedges = np.histogram2d(mag1-mag2,mag2,bins=[xedges,yedges],normed=False)
 Hsim = Hsim / Hsim.max()
 
@@ -188,6 +193,87 @@ plt.colorbar(imgobs, ax=ax4)
 #ax.set_aspect('equal')
 plt.show()
 
+
+#Calculate likelihood from Section 4 in Robin et al 2014
+# L = Sum q_i * (1 - R_i + ln(R_i)); R_i = f_i/q_i, f = # stars in model in bin i
+# q = # stars in data in bin i
+
+R_i = Hsim[(Hobs > 0.0) & (Hsim > 0.0)] / Hobs[(Hobs > 0.0) & (Hsim > 0.0)]
+L_i = Hobs[(Hobs > 0.0) & (Hsim > 0.0)] * (1. - R_i + np.log(R_i))
+L_tot = np.sum(L_i)
+print L_tot
+
+#Test likelihood values for different q and different values of alpha:
+
+xminfit = -0.7
+xmaxfit =  0.4 
+yminfit = 24.5
+ymaxfit = 29.0
+binsize = 0.1
+
+nbinx = int((xmaxfit - xminfit) / binsize)
+nbiny = int((ymaxfit - yminfit) / binsize)
+xedges = np.linspace(xminfit,xmaxfit,nbinx)
+yedges = np.linspace(yminfit,ymaxfit,nbiny)
+
+Hobs, xedges, yedges = np.histogram2d(colorarr,magarr,bins=[xedges,yedges],normed=False)
+#Hobs = Hobs / Hobs.max()
+Xobs, Yobs = np.meshgrid(xedges, yedges)
+
+nrequired=20000
+qarr = np.linspace(0.0,1.0,18)
+
+L_tot = []
+for q in qarr:
+	cmd = SyntheticCMD(myiso,strmag1,strmag2,abs_mag_min,abs_mag_max,nrequired,
+    f_Phiinv,q=q,modulus=dmod0)
+	mag1, mag2 = simulateScatter(cmd,p1,p2)
+	Hsim, xedges, yedges = np.histogram2d(mag1-mag2,mag2,bins=[xedges,yedges],normed=False)
+	#Hsim = Hsim / Hsim.max()
+	Xsim, Ysim = np.meshgrid(xedges, yedges)
+	R_i = Hsim[(Hobs > 0.0) & (Hsim > 0.0)] / Hobs[(Hobs > 0.0) & (Hsim > 0.0)]
+	L_i = Hobs[(Hobs > 0.0) & (Hsim > 0.0)] * (1. - R_i + np.log(R_i))
+	L_tot.append(-1.*np.sum(L_i))
+
+plt.plot(qarr,L_tot,ls='-')
+plt.xlabel("q")
+plt.ylabel("-ln L")
+plt.show()
+
+nrequired=20000
+
+#Create simulated data object
+myiso = DartmouthIsochrone(-2.0,0.4,14.0,'acs')
+myiso.interpolate(dm=0.001,diagnose=False)
+myiso.has_interp()
+isomass = myiso.data['mass']
+alphaarr = np.linspace(1.5,3.5,9)
+
+#use salpeter
+L_tot = []
+q = 0.0
+for alpha in alphaarr:
+	fs = f_salpeter(isomass,alpha)
+	#fk = f_kroupa(isomass,1.35,1.7,alpha_3=2.30)
+	Phi_s = np.cumsum(fs)
+	Phi_s = Phi_s / max(Phi_s)
+	#Phi_k = np.cumsum(fk)
+	#Phi_k = Phi_k / max(Phi_k)
+	f_Phiinv = interpolate.splrep(Phi_s,isomass)
+	cmd = SyntheticCMD(myiso,strmag1,strmag2,abs_mag_min,abs_mag_max,nrequired,
+    f_Phiinv,q=q,modulus=dmod0)
+	mag1, mag2 = simulateScatter(cmd,p1,p2)
+	Hsim, xedges, yedges = np.histogram2d(mag1-mag2,mag2,bins=[xedges,yedges],normed=False)
+	#Hsim = Hsim / Hsim.max()
+	Xsim, Ysim = np.meshgrid(xedges, yedges)
+	R_i = Hsim[(Hobs > 0.0) & (Hsim > 0.0)] / Hobs[(Hobs > 0.0) & (Hsim > 0.0)]
+	L_i = Hobs[(Hobs > 0.0) & (Hsim > 0.0)] * (1. - R_i + np.log(R_i))
+	L_tot.append(-1.*np.sum(L_i))
+
+plt.plot(alphaarr,L_tot,ls='-')
+plt.xlabel("alpha")
+plt.ylabel("-ln L")
+plt.show()
 
 #magsub1 = cmd.mag2[(cmd.mag2 >= abs_mag_min) & (cmd.mag2 <= abs_mag_max)]
 #magsub2 = cmd.mag2[(cmd.mag2 >= abs_mag_min) & (cmd.mag2 <= abs_mag_max)]
