@@ -51,10 +51,10 @@ nbiny = int((ymax - ymin) / binsize)
 #calculate heat map number counts
 xedges = np.linspace(xmin,xmax,nbinx)
 yedges = np.linspace(ymin,ymax,nbiny)
-H, xedges, yedges = np.histogram2d(colorarr,magarr,bins=[xedges,yedges],normed=False)
-H = H / H.max()
+Hobs, xedges, yedges = np.histogram2d(colorarr,magarr,bins=[xedges,yedges],normed=False)
+Hobs = Hobs / Hobs.max()
 
-X, Y = np.meshgrid(xedges, yedges)
+Xobs, Yobs = np.meshgrid(xedges, yedges)
 
 #plot CMD
 fig = plt.figure(figsize=(12,8))
@@ -66,13 +66,13 @@ ax1.set_xlim([xmin,xmax])
 ax1.set_ylim([ymax,ymin])
 
 ax2 = fig.add_subplot(122)
-img = ax2.pcolormesh(X, Y, H.transpose(), cmap='Blues')
+imgobs = ax2.pcolormesh(Xobs, Yobs, Hobs.transpose(), cmap='Blues')
 ax2.set_title('CMD Hess Diagram')
 ax2.set_xlabel(sysmag1+' - '+sysmag2)
 ax2.set_xlim([xmin,xmax])
 ax2.set_ylim([ymax,ymin])
 #plt.axis([xmin,xmax,ymax,ymin])
-plt.colorbar(img, ax=ax2)
+plt.colorbar(imgobs, ax=ax2)
 #ax.set_aspect('equal')
 plt.show()
 
@@ -120,7 +120,7 @@ Phi_k = Phi_k / max(Phi_k)
 f_Phiinv = interpolate.splrep(Phi_s,isomass)
 
 #Set binary fraction = number of binary systems
-q = 1.0
+q = 0.3
 nrequired = 80000
 
 #one way to select range of mags
@@ -135,42 +135,51 @@ abs_mag_min = myiso.data[strmag2][w]
 #do inverse transform sampling
 
 cmd = SyntheticCMD(myiso,strmag1,strmag2,abs_mag_min,abs_mag_max,nrequired,
-    f_Phiinv,q=1.0,modulus=dmod0)
+    f_Phiinv,q=q,modulus=dmod0)
 simcolor = cmd.color
 simmag = cmd.mag2
 
 #Plot Simulated and true data
 
-fig = plt.figure(figsize=(12,8))
+fig = plt.figure(figsize=(12,12))
 
-ax1 = fig.add_subplot(121)
+ax1 = fig.add_subplot(221)
 
 plot_obs_sim(ax1,[xmin,xmax],[ymax,ymin],simcolor,simmag,colorarr,magarr,
 	xlabel=strmag1 + '-' + strmag2,ylabel=strmag2,title="Simulated Data")
 
-#ax1.scatter(cmd.color, cmd.mag2, marker='o', s=0.5, color='blue')
-#ax1.set_xlim([min(cmd.color)-0.2,max(cmd.color)+0.2])
-#ax1.set_ylim([max(cmd.mag2),min(cmd.mag2)])
-#ax1.set_xlabel(strmag1 + '-' + strmag2)
-#ax1.set_ylabel(strmag2)
-#ax1.set_title("Simulated Data")
-
 mag1, mag2 = simulateScatter(cmd,p1,p2)
 
-ax2 = fig.add_subplot(122)
+ax2 = fig.add_subplot(222)
 plot_obs_sim(ax2,[xmin,xmax],[ymax,ymin],mag1-mag2,mag2,colorarr,magarr,
 	xlabel=strmag1 + '-' + strmag2,ylabel=strmag2,title="Simulated Data w/Uncertainties")
 
+xedges = np.linspace(xmin,xmax,nbinx)
+yedges = np.linspace(ymin,ymax,nbiny)
+Hsim, xedges, yedges = np.histogram2d(mag1-mag2,mag2,bins=[xedges,yedges],normed=False)
+Hsim = Hsim / Hsim.max()
 
-#ax2.scatter(mag1-mag2, mag2, marker='o', s=0.5, color='blue')
-#ax2.plot(colorarr,magarr,marker='o',color='red',ls='None',ms=2)
-#xmin = -1.0 ; xmax =  0.5 ; ymin = 22 ; ymax = 30
-#ax2.set_xlim([xmin,xmax])
-#ax2.set_ylim([ymax,ymin])
-#ax2.set_xlabel(strmag1 + '-' + strmag2)
-#ax2.set_ylabel(strmag2)
-#ax2.set_title("Simulated Data + Observed Data")
+Xsim, Ysim = np.meshgrid(xedges, yedges)
 
+ax3 = fig.add_subplot(223)
+imgsim = ax3.pcolormesh(Xsim, Ysim, Hsim.transpose(), cmap='Blues')
+ax3.set_title('Hess Map Simulated')
+ax3.set_xlabel(sysmag1+' - '+sysmag2)
+ax3.set_xlim([xmin,xmax])
+ax3.set_ylim([ymax,ymin])
+#plt.axis([xmin,xmax,ymax,ymin])
+plt.colorbar(imgsim, ax=ax3)
+#ax.set_aspect('equal')
+
+ax4 = fig.add_subplot(224)
+img = ax4.pcolormesh(Xobs, Yobs, Hobs.transpose(), cmap='Blues')
+ax4.set_title('Hess Map Observations')
+ax4.set_xlabel(sysmag1+' - '+sysmag2)
+ax4.set_xlim([xmin,xmax])
+ax4.set_ylim([ymax,ymin])
+#plt.axis([xmin,xmax,ymax,ymin])
+plt.colorbar(imgobs, ax=ax4)
+#ax.set_aspect('equal')
 plt.show()
 
 
