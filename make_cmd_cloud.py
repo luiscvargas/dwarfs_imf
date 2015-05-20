@@ -6,7 +6,6 @@ Purpose: Simulate a CMD and generate semi-empirical LF cloud
 Inputs : Binary fraction
 '''
 
-import pdb
 import sys
 import os
 import numpy as np
@@ -16,7 +15,6 @@ from mywrangle import *
 from myanalysis import *
 from my_em import *
 from scipy import interpolate
-from copy import deepcopy
 
 class DartmouthIsochrone(object):
 
@@ -142,7 +140,7 @@ class DartmouthIsochrone(object):
 
 class SyntheticCMD(object):
 
-    def __init__(self,iso,strmag1,strmag2,mag_min,mag_max,nrequired,fInv,
+    def __init__(self,iso,strmag1,strmag2,abs_mag_min,abs_mag_max,nrequired,fInv,
         modulus=0.0,q=0.0):
 
         mass_pri_arr = []  #reset mass array
@@ -195,14 +193,14 @@ class SyntheticCMD(object):
 
                 #correct for distance modulus assumed for mag_min and mag_max
                 #to cut the correct range of magnitudes in absoluate mag space.
-            ngood = len([x for x in mag2_arr if (x >= (mag_min-modulus)
-                and x <= (mag_max-modulus))])
+            ngood = len([x for x in mag2_arr if (x >= (abs_mag_min)
+                and x <= (abs_mag_max))])
 
         self.mass_pri = np.array(mass_pri_arr[0:nrequired])
         self.mass_sec = np.array(mass_sec_arr[0:nrequired])
         self.mass = np.array(mass_arr[0:nrequired])
-        self.mag1 = np.array(mag1_arr[0:nrequired])
-        self.mag2 = np.array(mag2_arr[0:nrequired])
+        self.mag1 = np.array(mag1_arr[0:nrequired]) + modulus
+        self.mag2 = np.array(mag2_arr[0:nrequired]) + modulus
         self.color = self.mag1 - self.mag2
         self.q = q
         self.modulus = modulus
@@ -240,6 +238,15 @@ class SyntheticCMD(object):
         cset = plt.contour(xg,yg,fg)
         plt.show()
 
+
+def simulateScatter(cmd,sigma1,sigma2):
+    if isinstance(sigma1,(int,float)):
+        mag1 = cmd.mag1 + np.random.randn(len(cmd.mag1)) * sigma1
+        mag2 = cmd.mag2 + np.random.randn(len(cmd.mag2)) * sigma2
+    else:
+        mag1 = cmd.mag1 + np.random.randn(len(cmd.mag1)) * np.polyval(sigma1,cmd.mag1)
+        mag2 = cmd.mag2 + np.random.randn(len(cmd.mag2)) * np.polyval(sigma2,cmd.mag2)
+    return mag1, mag2
 
 def cmdPlot(cmd,**kwargs):
     font = {'family' : 'serif',
@@ -285,83 +292,84 @@ def magPlot(cmd,**kwargs):
     plt.text(xmin+.1,ymax-.1,'q = {0:<g}'.format(q),fontdict=font)
     plt.show()
 
+if __name__ == "__main__":
 
-#Generate an isochrone object and interpolate to a uniformly-spaced mass array.
+    #Generate an isochrone object and interpolate to a uniformly-spaced mass array.
 
-myiso = DartmouthIsochrone(-2.0,0.4,14.0,'sdss')
-myiso.interpolate(dm=0.001,diagnose=False)
-myiso.has_interp()
+    myiso = DartmouthIsochrone(-2.0,0.4,14.0,'sdss')
+    myiso.interpolate(dm=0.001,diagnose=False)
+    myiso.has_interp()
 
-strmag1 = 'F110W'
-strmag2 = 'F160W'
+    strmag1 = 'F110W'
+    strmag2 = 'F160W'
 
-strmag1 = 'g'
-strmag2 = 'r'
+    strmag1 = 'g'
+    strmag2 = 'r'
 
-#plt.plot(myiso.data[strmag1]-myiso.data[strmag2],myiso.data[strmag2],lw=2)
-#plt.axis([-1,0,15,0])
-#plt.xlabel(strmag1 + '-' + strmag2)
-#plt.ylabel(strmag2)
-#plt.show()
+    #plt.plot(myiso.data[strmag1]-myiso.data[strmag2],myiso.data[strmag2],lw=2)
+    #plt.axis([-1,0,15,0])
+    #plt.xlabel(strmag1 + '-' + strmag2)
+    #plt.ylabel(strmag2)
+    #plt.show()
 
-#Proceed to draw stars from distribution.
-#Will use rejection sampling as it not clear how to use inverse transformation
-#when binaries are included, except when
+    #Proceed to draw stars from distribution.
+    #Will use rejection sampling as it not clear how to use inverse transformation
+    #when binaries are included, except when
 
-#binary approach 1:
+    #binary approach 1:
     # dN/dM: both primary and secondary drawn from full IMF distribution, then matched randomly
     # binary fraction, q binary systems: ntot = (1-q)*nsys + 2q*nsys, fraction of stars in binaries =
     # 2q*nsys / ntot = 2q*nsys / (1+q)*nsys , n single stars = ntot * (1-q)*nsys/(1+q)*nsys = (1-q)/(1+q)
     # 1 alt: change boundaries on Mmin, and Mmax.
 
-isomass = myiso.data['mass']
+    isomass = myiso.data['mass']
 
-alpha = 2.35
-fs = f_salpeter(isomass,alpha)
-fk = f_kroupa(isomass,1.35,1.7,alpha_3=2.30)
-Phi_s = np.cumsum(fs)
-Phi_s = Phi_s / max(Phi_s)
-Phi_k = np.cumsum(fk)
-Phi_k = Phi_k / max(Phi_k)
+    alpha = 2.35
+    fs = f_salpeter(isomass,alpha)
+    fk = f_kroupa(isomass,1.35,1.7,alpha_3=2.30)
+    Phi_s = np.cumsum(fs)
+    Phi_s = Phi_s / max(Phi_s)
+    Phi_k = np.cumsum(fk)
+    Phi_k = Phi_k / max(Phi_k)
 
-#use salpeter
-f_Phiinv = interpolate.splrep(Phi_s,isomass)
+    #use salpeter
+    f_Phiinv = interpolate.splrep(Phi_s,isomass)
 
-#Set binary fraction = number of binary systems
-q = 1.0
-nrequired = 80000
+    #Set binary fraction = number of binary systems
+    q = 1.0
+    nrequired = 80000
 
-#one way to select range of mags
-#another is based on observational constraints
-mass_min = 0.3
-mass_max = 0.8
-w = np.argmin(abs(isomass - mass_min))
-mag_max = myiso.data[strmag2][w]
-w = np.argmin(abs(isomass - mass_max))
-mag_min = myiso.data[strmag2][w]
+    #one way to select range of mags
+    #another is based on observational constraints
+    mass_min = 0.3
+    mass_max = 0.8
+    w = np.argmin(abs(isomass - mass_min))
+    abs_mag_max = myiso.data[strmag2][w]
+    w = np.argmin(abs(isomass - mass_max))
+    abs_mag_min = myiso.data[strmag2][w]
 
-#do inverse transform sampling
+    #do inverse transform sampling
 
-cmd = SyntheticCMD(myiso,strmag1,strmag2,mag_min,mag_max,nrequired,
-    f_Phiinv,q=1.0)
+    cmd = SyntheticCMD(myiso,strmag1,strmag2,abs_mag_min,abs_mag_max,nrequired,
+        f_Phiinv,q=1.0)
 
-cmdPlot(cmd,yrange=[10,2])
+    cmdPlot(cmd,yrange=[10,2])
 
-magsub1 = cmd.mag2[(cmd.mag2 >= mag_min) & (cmd.mag2 <= mag_max)]
-magsub2 = cmd.mag2[(cmd.mag2 >= mag_min) & (cmd.mag2 <= mag_max)]
-yval, edges = np.histogram(magsub2,bins=20)
-xval = 0.5 * (edges[1:] + edges[:-1])
-plt.bar(xval,yval,align='center',width=xval[1]-xval[0],color=None)
-plt.show()
+    magsub1 = cmd.mag2[(cmd.mag2 >= abs_mag_min) & (cmd.mag2 <= abs_mag_max)]
+    magsub2 = cmd.mag2[(cmd.mag2 >= abs_mag_min) & (cmd.mag2 <= abs_mag_max)]
+    yval, edges = np.histogram(magsub2,bins=20)
+    xval = 0.5 * (edges[1:] + edges[:-1])
+    plt.bar(xval,yval,align='center',width=xval[1]-xval[0],color=None)
+    plt.show()
 
-#dx = 0.2
-#cmd.cmdDensity(dx,dx)
-
-
+    #dx = 0.2
+    #cmd.cmdDensity(dx,dx)
 
 
-#plt.plot(Phi_s,mass,color='red',label='PL')
-#plt.plot(Phi_k,mass,color='blue',label='BkPL')
-#plt.axis([0,1,0,0.9])
-#plt.legend()
-#plt.show()
+
+
+    #plt.plot(Phi_s,mass,color='red',label='PL')
+    #plt.plot(Phi_k,mass,color='blue',label='BkPL')
+    #plt.axis([0,1,0,0.9])
+    #plt.legend()
+    #plt.show()

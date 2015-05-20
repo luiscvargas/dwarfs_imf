@@ -9,6 +9,17 @@ import pandas as pd
 import timeit
 from mywrangle import *
 from myanalysis import *
+from make_cmd_cloud import *
+
+def plot_obs_sim(ax,xrange,yrange,simcolor,simmag,obscolor,obsmag,xlabel="",ylabel="",title=""):
+
+	ax.plot(simcolor, simmag, marker='o',ms=2,color='blue',ls="None")
+	ax.plot(obscolor, obsmag,marker='o',color='red',ls='None',ms=2,alpha=0.5)
+	ax.set_xlim([xrange[0],xrange[1]])
+	ax.set_ylim([yrange[0],yrange[1]])
+	ax.set_xlabel(xlabel)
+	ax.set_ylabel(ylabel)
+	ax.set_title(title)
 
 #Set env variables for latex-style plotting
 rc('text', usetex=True)
@@ -65,13 +76,107 @@ plt.colorbar(img, ax=ax2)
 #ax.set_aspect('equal')
 plt.show()
 
-magsort1 = np.argsort(phot['F606W'])
-magsort2 = np.argsort(phot['F814W'])
-p1 = np.polyfit(phot['F606W'][magsort1],phot['F606Werr'][magsort1],4,cov=False)
-p2 = np.polyfit(phot['F814W'][magsort2],phot['F814Werr'][magsort2],4,cov=False)
-magarr1 = np.arange(22.,32.,.01)  
+#calculate uncertainties as function of magnitude for input to simulated data.
+
+x1 = phot['F606W'][phot['F606Werr'] > 0.0]
+x1err = phot['F606Werr'][phot['F606Werr'] > 0.0]
+x2 = phot['F814W'][phot['F814Werr'] > 0.0]
+x2err = phot['F814Werr'][phot['F814Werr'] > 0.0]
+
+magsort1 = np.argsort(x1)
+magsort2 = np.argsort(x2)
+p1 = np.polyfit(x1[magsort1],x1err[magsort1],5,cov=False)
+p2 = np.polyfit(x2[magsort2],x2err[magsort2],5,cov=False)
+magarr1 = np.arange(20.,32.,.01)  
 magarr2 = np.copy(magarr1)
 magerrarr1_ = np.polyval(p1,magarr1)
-magerrarr1_[magarr1 <= phot['F606W'].min()] = phot['F606Werr'].min()
+#magerrarr1_[magarr1 <= phot['F606W'].min()] = phot['F606Werr'].min()
 magerrarr2_ = np.polyval(p2,magarr2)
-magerrarr2_[magarr2 <= phot['F814W'].min()] = phot['F814Werr'].min()
+#magerrarr2_[magarr2 <= phot['F814W'].min()] = phot['F814Werr'].min()
+plt.plot(magarr1, magerrarr1_)
+plt.plot(x1,x1err,c='red',marker='o',ms=1,ls='None')
+plt.show()
+
+#Create simulated data object
+
+myiso = DartmouthIsochrone(-2.0,0.4,14.0,'acs')
+myiso.interpolate(dm=0.001,diagnose=False)
+myiso.has_interp()
+
+strmag1 = 'F606W'
+strmag2 = 'F814W'
+
+isomass = myiso.data['mass']
+
+alpha = 2.35
+fs = f_salpeter(isomass,alpha)
+fk = f_kroupa(isomass,1.35,1.7,alpha_3=2.30)
+Phi_s = np.cumsum(fs)
+Phi_s = Phi_s / max(Phi_s)
+Phi_k = np.cumsum(fk)
+Phi_k = Phi_k / max(Phi_k)
+
+#use salpeter
+f_Phiinv = interpolate.splrep(Phi_s,isomass)
+
+#Set binary fraction = number of binary systems
+q = 1.0
+nrequired = 80000
+
+#one way to select range of mags
+    #another is based on observational constraints
+mass_min = 0.3
+mass_max = 0.8
+w = np.argmin(abs(isomass - mass_min))
+abs_mag_max = myiso.data[strmag2][w]
+w = np.argmin(abs(isomass - mass_max))
+abs_mag_min = myiso.data[strmag2][w]
+
+#do inverse transform sampling
+
+cmd = SyntheticCMD(myiso,strmag1,strmag2,abs_mag_min,abs_mag_max,nrequired,
+    f_Phiinv,q=1.0,modulus=dmod0)
+simcolor = cmd.color
+simmag = cmd.mag2
+
+#Plot Simulated and true data
+
+fig = plt.figure(figsize=(12,8))
+
+ax1 = fig.add_subplot(121)
+
+plot_obs_sim(ax1,[xmin,xmax],[ymax,ymin],simcolor,simmag,colorarr,magarr,
+	xlabel=strmag1 + '-' + strmag2,ylabel=strmag2,title="Simulated Data")
+
+#ax1.scatter(cmd.color, cmd.mag2, marker='o', s=0.5, color='blue')
+#ax1.set_xlim([min(cmd.color)-0.2,max(cmd.color)+0.2])
+#ax1.set_ylim([max(cmd.mag2),min(cmd.mag2)])
+#ax1.set_xlabel(strmag1 + '-' + strmag2)
+#ax1.set_ylabel(strmag2)
+#ax1.set_title("Simulated Data")
+
+mag1, mag2 = simulateScatter(cmd,p1,p2)
+
+ax2 = fig.add_subplot(122)
+plot_obs_sim(ax2,[xmin,xmax],[ymax,ymin],mag1-mag2,mag2,colorarr,magarr,
+	xlabel=strmag1 + '-' + strmag2,ylabel=strmag2,title="Simulated Data w/Uncertainties")
+
+
+#ax2.scatter(mag1-mag2, mag2, marker='o', s=0.5, color='blue')
+#ax2.plot(colorarr,magarr,marker='o',color='red',ls='None',ms=2)
+#xmin = -1.0 ; xmax =  0.5 ; ymin = 22 ; ymax = 30
+#ax2.set_xlim([xmin,xmax])
+#ax2.set_ylim([ymax,ymin])
+#ax2.set_xlabel(strmag1 + '-' + strmag2)
+#ax2.set_ylabel(strmag2)
+#ax2.set_title("Simulated Data + Observed Data")
+
+plt.show()
+
+
+#magsub1 = cmd.mag2[(cmd.mag2 >= abs_mag_min) & (cmd.mag2 <= abs_mag_max)]
+#magsub2 = cmd.mag2[(cmd.mag2 >= abs_mag_min) & (cmd.mag2 <= abs_mag_max)]
+#yval, edges = np.histogram(magsub2,bins=20)
+#xval = 0.5 * (edges[1:] + edges[:-1])
+#plt.bar(xval,yval,align='center',width=xval[1]-xval[0],color=None)
+#plt.show()
