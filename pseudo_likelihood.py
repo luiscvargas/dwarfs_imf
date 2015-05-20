@@ -78,6 +78,9 @@ plt.show()
 
 #calculate uncertainties as function of magnitude for input to simulated data.
 
+strmag1 = 'F606W'
+strmag2 = 'F814W'
+
 x1 = phot['F606W'][phot['F606Werr'] > 0.0]
 x1err = phot['F606Werr'][phot['F606Werr'] > 0.0]
 x2 = phot['F814W'][phot['F814Werr'] > 0.0]
@@ -93,8 +96,14 @@ magerrarr1_ = np.polyval(p1,magarr1)
 #magerrarr1_[magarr1 <= phot['F606W'].min()] = phot['F606Werr'].min()
 magerrarr2_ = np.polyval(p2,magarr2)
 #magerrarr2_[magarr2 <= phot['F814W'].min()] = phot['F814Werr'].min()
-plt.plot(magarr1, magerrarr1_)
-plt.plot(x1,x1err,c='red',marker='o',ms=1,ls='None')
+plt.plot(x1,x1err,c='red',marker='o',ms=2,ls='None',alpha=0.3,label=strmag1)
+plt.plot(x2,x2err,c='blue',marker='o',ms=2,ls='None',alpha=0.3,label=strmag2)
+plt.plot(magarr1, magerrarr1_, ls='-', color='red',lw=3)
+plt.plot(magarr2, magerrarr2_, ls='-', color='blue',lw=3)
+plt.ylim([0.,0.6])
+plt.xlabel("Mag")
+plt.ylabel("Uncertainty")
+plt.legend(loc=2)
 plt.show()
 
 #Create simulated data object
@@ -102,9 +111,6 @@ plt.show()
 myiso = DartmouthIsochrone(-2.0,0.4,14.0,'acs')
 myiso.interpolate(dm=0.001,diagnose=False)
 myiso.has_interp()
-
-strmag1 = 'F606W'
-strmag2 = 'F814W'
 
 isomass = myiso.data['mass']
 
