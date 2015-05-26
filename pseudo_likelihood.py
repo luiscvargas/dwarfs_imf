@@ -132,7 +132,6 @@ f_Phiinv = interpolate.splrep(Phi_s,isomass)
 
 #Set binary fraction = number of binary systems
 q = 0.3
-nrequired = 30000
 
 #one way to select range of mags
     #another is based on observational constraints
@@ -142,6 +141,16 @@ w = np.argmin(abs(isomass - mass_min))
 abs_mag_max = myiso.data[strmag2][w]
 w = np.argmin(abs(isomass - mass_max))
 abs_mag_min = myiso.data[strmag2][w]
+
+#Get number of stellar objects corresponding to the mass limits above
+
+n_observed_box = len(x2[(x2 >= abs_mag_min + dmod0) & (x2 <= abs_mag_max + dmod0)])
+
+n_simulated_box = 30000
+
+nrequired = n_simulated_box
+
+f_observed_simulated = float(n_simulated_box) / n_observed_box
 
 #do inverse transform sampling
 
@@ -220,7 +229,6 @@ Hobs, xedges, yedges = np.histogram2d(colorarr,magarr,bins=[xedges,yedges],norme
 #Hobs = Hobs / Hobs.max()
 Xobs, Yobs = np.meshgrid(xedges, yedges)
 
-nrequired=20000
 qarr = np.linspace(0.0,1.0,18)
 
 L_tot = []
@@ -229,6 +237,7 @@ for q in qarr:
     f_Phiinv,q=q,modulus=dmod0)
 	mag1, mag2 = simulateScatter(cmd,p1,p2)
 	Hsim, xedges, yedges = np.histogram2d(mag1-mag2,mag2,bins=[xedges,yedges],normed=False)
+	Hsim = Hsim / f_observed_simulated
 	#Hsim = Hsim / Hsim.max()
 	Xsim, Ysim = np.meshgrid(xedges, yedges)
 	R_i = Hsim[(Hobs > 0.0) & (Hsim > 0.0)] / Hobs[(Hobs > 0.0) & (Hsim > 0.0)]
@@ -240,7 +249,6 @@ plt.xlabel("q")
 plt.ylabel("-ln L")
 plt.show()
 
-nrequired=20000
 
 #Create simulated data object
 myiso = DartmouthIsochrone(-2.0,0.4,14.0,'acs')
@@ -251,7 +259,7 @@ alphaarr = np.linspace(1.5,3.5,9)
 
 #use salpeter
 L_tot = []
-q = 0.0
+q = 0.5
 for alpha in alphaarr:
 	fs = f_salpeter(isomass,alpha)
 	#fk = f_kroupa(isomass,1.35,1.7,alpha_3=2.30)
@@ -264,6 +272,7 @@ for alpha in alphaarr:
     f_Phiinv,q=q,modulus=dmod0)
 	mag1, mag2 = simulateScatter(cmd,p1,p2)
 	Hsim, xedges, yedges = np.histogram2d(mag1-mag2,mag2,bins=[xedges,yedges],normed=False)
+	Hsim = Hsim / f_observed_simulated
 	#Hsim = Hsim / Hsim.max()
 	Xsim, Ysim = np.meshgrid(xedges, yedges)
 	R_i = Hsim[(Hobs > 0.0) & (Hsim > 0.0)] / Hobs[(Hobs > 0.0) & (Hsim > 0.0)]
